@@ -1,7 +1,7 @@
 # Group-06
 Initial Project Ideas by Group 6:
 1. **HealthBridge** — Local Doctor Appointment & Record System
-A platform to book doctor appointments, track personal health history, and receive medication or checkup reminders — all in one place.
+A platform to book doctor appointments, track personal health history and receive medication or checkup reminders — all in one place.
 
 2. **MentalSpace** — Mental Wellness & Mood Tracking App
 Track your daily mood, write journal entries, and connect with licensed counselors — a safe space to prioritize your mental health.
