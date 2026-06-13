@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Products</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Products</h1>
+
+<div class="stats">
+
+<div class="card">
+<h2><?php echo $totalProducts; ?></h2>
+<p>Total Products</p>
+</div>
+
+<div class="card">
+<h2><?php echo $activeProducts; ?></h2>
+<p>Active Products</p>
+</div>
+
+<div class="card">
+<h2><?php echo $lowStock; ?></h2>
+<p>Low Stock</p>
+</div>
+
+<div class="card">
+<h2><?php echo $outStock; ?></h2>
+<p>Out Of Stock</p>
+</div>
+
+<div class="card">
+<h2>NPR <?php echo number_format($totalValue['totalValue']); ?></h2>
+<p>Total Inventory Value</p>
+</div>
+
+</div>
+
+<div class="toolbar">
+
+<input
+type="text"
+placeholder="Search Product..."
+>
+
+<select>
+<option>All Categories</option>
+</select>
+
+<select>
+<option>All Status</option>
+</select>
+
+<button>Add Product</button>
+
+</div>
+
+<table>
+
+<tr>
+<th>Image</th>
+<th>Product</th>
+<th>Category</th>
+<th>SKU</th>
+<th>Stock</th>
+<th>Price</th>
+<th>Status</th>
+<th>Actions</th>
+</tr>
+
+<?php while($row = mysqli_fetch_assoc($result)){ ?>
+
+<tr>
+
+<td>
+<img
+src="images/<?php echo $row['image']; ?>"
+width="50"
+height="50">
+</td>
+
+<td>
+<b><?php echo $row['product_name']; ?></b>
+<br>
+<small><?php echo $row['sku']; ?></small>
+</td>
+
+<td><?php echo $row['category']; ?></td>
+
+<td><?php echo $row['sku']; ?></td>
+
+<td><?php echo $row['stock']; ?> Units</td>
+
+<td>NPR <?php echo $row['price']; ?></td>
+
+<td>
+<span class="<?php echo ($row['status']=='Low Stock') ? 'low' : 'instock'; ?>">
+<?php echo $row['status']; ?>
+</span>
+</td>
+
+<td>
+<a href="#">✏️</a>
+<a href="#">🗑️</a>
+</td>
+
+</tr>
+
+<?php } ?>
+
+</table>
+
+</div>
+
+</body>
+</html>
