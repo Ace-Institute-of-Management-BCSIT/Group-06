@@ -39,16 +39,16 @@ A management tool for supermarkets and warehouses to track stock levels, monitor
 
 
 
-<img src="/Group-06/Documentation/Flowcharts/cashier.png" alt="cashier.png">
+<img src="/Documentation/Flowcharts/cashier.png" alt="cashier.png">
 
 
-<img src="/Group-06/Documentation/Flowcharts/admin.png" alt="admin.png">
+<img src="/Documentation/Flowcharts/admin.png" alt="admin.png">
 
 
-<img src="/Group-06/Documentation/Flowcharts/warehouse.png" alt="warehouse.png">
+<img src="/Documentation/Flowcharts/warehouse.png" alt="warehouse.png">
 
 
-<img src="/Group-06/Documentation/Flowcharts/inventory.png" alt="inventory.png">
+<img src="/Documentation/Flowcharts/inventory.png" alt="inventory.png">
 
 
 
