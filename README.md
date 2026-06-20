@@ -35,21 +35,20 @@ Connects individuals with nearby volunteering opportunities based on their inter
 A management tool for supermarkets and warehouses to track stock levels, monitor expiry dates, manage suppliers, and generate restocking alerts — keeping operations efficient and loss-free.
 
 
-# Project Mockups:
-
-**Login**
-
-<iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="800" height="450" src="https://embed.figma.com/design/v3lXJ5uSVkqbMznKKPiktP/Login-page-%7C-Login-page-for-website--Community-?node-id=0-1&embed-host=share" allowfullscreen></iframe>
+# Project Flowcharts:
 
 
-**Checkout**
 
-<iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="800" height="450" src="https://embed.figma.com/design/bvBKGkmGy8xCtvIRk3jcNa/Checkout?node-id=0-1&embed-host=share" allowfullscreen></iframe>
+<img src="/Group-06/Documentation/Flowcharts/cashier.png" alt="cashier.png">
 
 
-**Home**
+<img src="/Group-06/Documentation/Flowcharts/admin.png" alt="admin.png">
 
-<iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="800" height="450" src="https://embed.figma.com/design/4iNGHPR7PgFaD8sIBLIsFe/Untitled?node-id=0-1&embed-host=share" allowfullscreen></iframe>
+
+<img src="/Group-06/Documentation/Flowcharts/warehouse.png" alt="warehouse.png">
+
+
+<img src="/Group-06/Documentation/Flowcharts/inventory.png" alt="inventory.png">
 
 
 
