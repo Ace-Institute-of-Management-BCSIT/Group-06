@@ -1,0 +1,155 @@
+================================================================================
+STOCKSMART — ENTITY RELATIONSHIP DIAGRAM (TEXT FORMAT)
+================================================================================
+
+roles (lookup)
+  PK role_id
+     role_name
+     role_description
+  │
+  │ 1
+  │
+  │ N
+users
+  PK user_id
+  FK role_id → roles.role_id
+     full_name, username (UQ), email (UQ), password_hash
+     phone, avatar_emoji, status, last_login_at
+  │
+  ├──< products.created_by           (1 user creates N products)
+  ├──< orders.cashier_id             (1 user processes N orders)
+  ├──< stock_movements.performed_by  (1 user performs N movements)
+  ├──< stock_transfers.requested_by  (1 user requests N transfers)
+  ├──< alerts.acknowledged_by        (1 user acknowledges N alerts)
+  └──< activity_logs.user_id         (1 user generates N log entries)
+
+categories (lookup)
+  PK category_id
+     category_name (UQ), description
+  │
+  │ 1
+  │
+  │ N
+products
+  PK product_id
+  FK category_id   → categories.category_id
+  FK supplier_id   → suppliers.supplier_id   (nullable)
+  FK created_by    → users.user_id           (nullable)
+     product_name, sku (UQ), icon_emoji, unit
+     price, cost_price, reorder_level
+     has_expiry, default_expiry_date, status
+  │
+  ├──< inventory.product_id          (1 product stocked in N warehouses)
+  ├──< product_batches.product_id    (1 product has N batches)
+  ├──< order_items.product_id        (1 product appears in N order lines)
+  ├──< stock_movements.product_id    (1 product has N movement records)
+  ├──< stock_transfers.product_id    (1 product transferred N times)
+  └──< alerts.product_id             (1 product can trigger N alerts)
+
+suppliers
+  PK supplier_id
+     supplier_name, contact_person, phone, email, address, status
+  │
+  │ 1
+  │
+  │ N
+  └──< products.supplier_id          (1 supplier supplies N products)
+
+warehouses
+  PK warehouse_id
+     warehouse_name (UQ), warehouse_type, address, is_active
+  │
+  ├──< inventory.warehouse_id            (1 warehouse holds N inventory rows)
+  ├──< product_batches.warehouse_id      (1 warehouse stores N batches)
+  ├──< orders.warehouse_id               (1 warehouse fulfils N orders)
+  ├──< stock_movements.warehouse_id      (1 warehouse has N movements)
+  ├──< stock_transfers.from_warehouse_id (1 warehouse is source of N transfers)
+  ├──< stock_transfers.to_warehouse_id   (1 warehouse is destination of N transfers)
+  └──< alerts.warehouse_id               (1 warehouse can have N alerts)
+
+inventory  (associative entity: products × warehouses)
+  PK inventory_id
+  FK product_id   → products.product_id    (CASCADE delete)
+  FK warehouse_id → warehouses.warehouse_id (RESTRICT delete)
+  UQ (product_id, warehouse_id)
+     quantity_on_hand, quantity_reserved
+     quantity_available  [GENERATED: on_hand - reserved]
+     last_counted_at
+
+product_batches
+  PK batch_id
+  FK product_id   → products.product_id    (CASCADE delete)
+  FK warehouse_id → warehouses.warehouse_id (RESTRICT delete)
+     batch_number (UQ), quantity
+     manufacture_date, expiry_date, received_at
+  │
+  └──< order_items.batch_id   (FEFO: a batch may be sold across N order lines)
+  └──< alerts.batch_id        (a batch may trigger an expiry alert)
+
+customers
+  PK customer_id
+     customer_name, phone, email, loyalty_points
+  │
+  │ 1
+  │
+  │ N  (nullable — walk-in sales have customer_id = NULL)
+orders
+  PK order_id
+  FK customer_id  → customers.customer_id  (SET NULL)
+  FK cashier_id   → users.user_id          (RESTRICT)
+  FK warehouse_id → warehouses.warehouse_id(RESTRICT)
+     order_number (UQ, e.g. "SC-10482")
+     items_total, discount_amount, loyalty_discount, tax_amount, grand_total
+     payment_method, order_status, order_date
+  │
+  │ 1
+  │
+  │ N
+order_items
+  PK order_item_id
+  FK order_id   → orders.order_id          (CASCADE — deleting an order removes its lines)
+  FK product_id → products.product_id      (RESTRICT — protects sales history)
+  FK batch_id   → product_batches.batch_id (SET NULL, nullable)
+     quantity, unit_price, discount_amount
+     line_total  [GENERATED: (quantity * unit_price) - discount_amount]
+
+stock_movements  (append-only audit ledger)
+  PK movement_id
+  FK product_id   → products.product_id    (CASCADE)
+  FK warehouse_id → warehouses.warehouse_id (RESTRICT)
+  FK performed_by → users.user_id           (SET NULL, nullable)
+     movement_type (purchase_in / sale_out / adjustment_in / adjustment_out /
+                     transfer_in / transfer_out / return_in / damage_out)
+     quantity, reference_table, reference_id, notes, created_at
+
+stock_transfers
+  PK transfer_id
+  FK product_id        → products.product_id     (CASCADE)
+  FK from_warehouse_id  → warehouses.warehouse_id  (RESTRICT)
+  FK to_warehouse_id    → warehouses.warehouse_id  (RESTRICT)
+  FK requested_by       → users.user_id            (SET NULL, nullable)
+     quantity, status, transferred_at
+     [TRIGGER enforces from_warehouse_id <> to_warehouse_id]
+
+alerts
+  PK alert_id
+  FK product_id       → products.product_id        (CASCADE)
+  FK warehouse_id      → warehouses.warehouse_id     (SET NULL, nullable)
+  FK batch_id          → product_batches.batch_id    (CASCADE, nullable)
+  FK acknowledged_by   → users.user_id               (SET NULL, nullable)
+     alert_type (low_stock / out_of_stock / expiry)
+     message, severity, is_acknowledged, acknowledged_at, created_at
+
+activity_logs  (append-only audit ledger)
+  PK log_id
+  FK user_id → users.user_id (SET NULL, nullable — preserves log if user is removed)
+     activity_type (add / update / delete / checkout / alert / transfer / login / logout)
+     entity_type, entity_id, description, ip_address, created_at
+
+LEGEND
+  PK  = Primary Key      FK = Foreign Key      UQ = Unique constraint
+  1──<N  = one-to-many relationship (read as "one ... has many ...")
+  CASCADE   = child rows deleted automatically when parent is deleted
+  RESTRICT  = parent cannot be deleted while child rows reference it
+  SET NULL  = FK column set to NULL when parent is deleted
+================================================================================

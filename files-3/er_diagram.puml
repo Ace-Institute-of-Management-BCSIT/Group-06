@@ -1,0 +1,228 @@
+@startuml StockSmart_ER_Diagram
+!define PK(x) <b><color:#b8860b><&key></color> x</b>
+!define FK(x) <color:#4682b4><&link-intact></color> x
+hide circle
+skinparam linetype ortho
+skinparam class {
+  BackgroundColor #F8F9FC
+  BorderColor #5b6ef5
+  ArrowColor #5b6ef5
+  FontName Arial
+}
+
+entity "roles" as roles {
+  PK(role_id) : TINYINT UNSIGNED
+  --
+  role_name : VARCHAR(30)
+  role_description : VARCHAR(150)
+}
+
+entity "users" as users {
+  PK(user_id) : INT UNSIGNED
+  --
+  FK(role_id) : TINYINT UNSIGNED
+  full_name : VARCHAR(100)
+  username : VARCHAR(50)
+  email : VARCHAR(120)
+  password_hash : VARCHAR(255)
+  phone : VARCHAR(20)
+  avatar_emoji : VARCHAR(10)
+  status : ENUM
+  last_login_at : DATETIME
+}
+
+entity "categories" as categories {
+  PK(category_id) : SMALLINT UNSIGNED
+  --
+  category_name : VARCHAR(60)
+  description : VARCHAR(200)
+}
+
+entity "suppliers" as suppliers {
+  PK(supplier_id) : INT UNSIGNED
+  --
+  supplier_name : VARCHAR(120)
+  contact_person : VARCHAR(100)
+  phone : VARCHAR(20)
+  email : VARCHAR(120)
+  address : VARCHAR(255)
+  status : ENUM
+}
+
+entity "warehouses" as warehouses {
+  PK(warehouse_id) : SMALLINT UNSIGNED
+  --
+  warehouse_name : VARCHAR(80)
+  warehouse_type : ENUM
+  address : VARCHAR(255)
+  is_active : TINYINT(1)
+}
+
+entity "products" as products {
+  PK(product_id) : INT UNSIGNED
+  --
+  FK(category_id) : SMALLINT UNSIGNED
+  FK(supplier_id) : INT UNSIGNED
+  FK(created_by) : INT UNSIGNED
+  product_name : VARCHAR(150)
+  sku : VARCHAR(40)
+  icon_emoji : VARCHAR(10)
+  unit : VARCHAR(20)
+  price : DECIMAL(12,2)
+  cost_price : DECIMAL(12,2)
+  reorder_level : INT UNSIGNED
+  has_expiry : TINYINT(1)
+  default_expiry_date : DATE
+  status : ENUM
+}
+
+entity "inventory" as inventory {
+  PK(inventory_id) : INT UNSIGNED
+  --
+  FK(product_id) : INT UNSIGNED
+  FK(warehouse_id) : SMALLINT UNSIGNED
+  quantity_on_hand : INT UNSIGNED
+  quantity_reserved : INT UNSIGNED
+  quantity_available : INT <<generated>>
+  last_counted_at : DATETIME
+}
+
+entity "product_batches" as product_batches {
+  PK(batch_id) : INT UNSIGNED
+  --
+  FK(product_id) : INT UNSIGNED
+  FK(warehouse_id) : SMALLINT UNSIGNED
+  batch_number : VARCHAR(40)
+  quantity : INT UNSIGNED
+  manufacture_date : DATE
+  expiry_date : DATE
+  received_at : TIMESTAMP
+}
+
+entity "customers" as customers {
+  PK(customer_id) : INT UNSIGNED
+  --
+  customer_name : VARCHAR(100)
+  phone : VARCHAR(20)
+  email : VARCHAR(120)
+  loyalty_points : DECIMAL(10,2)
+}
+
+entity "orders" as orders {
+  PK(order_id) : INT UNSIGNED
+  --
+  FK(customer_id) : INT UNSIGNED
+  FK(cashier_id) : INT UNSIGNED
+  FK(warehouse_id) : SMALLINT UNSIGNED
+  order_number : VARCHAR(30)
+  items_total : DECIMAL(12,2)
+  discount_amount : DECIMAL(12,2)
+  loyalty_discount : DECIMAL(12,2)
+  tax_amount : DECIMAL(12,2)
+  grand_total : DECIMAL(12,2)
+  payment_method : ENUM
+  order_status : ENUM
+  order_date : TIMESTAMP
+}
+
+entity "order_items" as order_items {
+  PK(order_item_id) : INT UNSIGNED
+  --
+  FK(order_id) : INT UNSIGNED
+  FK(product_id) : INT UNSIGNED
+  FK(batch_id) : INT UNSIGNED
+  quantity : DECIMAL(10,2)
+  unit_price : DECIMAL(12,2)
+  discount_amount : DECIMAL(12,2)
+  line_total : DECIMAL(12,2) <<generated>>
+}
+
+entity "stock_movements" as stock_movements {
+  PK(movement_id) : BIGINT UNSIGNED
+  --
+  FK(product_id) : INT UNSIGNED
+  FK(warehouse_id) : SMALLINT UNSIGNED
+  FK(performed_by) : INT UNSIGNED
+  movement_type : ENUM
+  quantity : INT UNSIGNED
+  reference_table : VARCHAR(30)
+  reference_id : INT UNSIGNED
+  notes : VARCHAR(255)
+  created_at : TIMESTAMP
+}
+
+entity "stock_transfers" as stock_transfers {
+  PK(transfer_id) : INT UNSIGNED
+  --
+  FK(product_id) : INT UNSIGNED
+  FK(from_warehouse_id) : SMALLINT UNSIGNED
+  FK(to_warehouse_id) : SMALLINT UNSIGNED
+  FK(requested_by) : INT UNSIGNED
+  quantity : INT UNSIGNED
+  status : ENUM
+  transferred_at : TIMESTAMP
+}
+
+entity "alerts" as alerts {
+  PK(alert_id) : INT UNSIGNED
+  --
+  FK(product_id) : INT UNSIGNED
+  FK(warehouse_id) : SMALLINT UNSIGNED
+  FK(batch_id) : INT UNSIGNED
+  FK(acknowledged_by) : INT UNSIGNED
+  alert_type : ENUM
+  message : VARCHAR(255)
+  severity : ENUM
+  is_acknowledged : TINYINT(1)
+  acknowledged_at : DATETIME
+  created_at : TIMESTAMP
+}
+
+entity "activity_logs" as activity_logs {
+  PK(log_id) : BIGINT UNSIGNED
+  --
+  FK(user_id) : INT UNSIGNED
+  activity_type : ENUM
+  entity_type : VARCHAR(40)
+  entity_id : INT UNSIGNED
+  description : VARCHAR(255)
+  ip_address : VARCHAR(45)
+  created_at : TIMESTAMP
+}
+
+' ---- Relationships ----
+roles ||--o{ users : "has"
+users ||--o{ products : "creates"
+categories ||--o{ products : "classifies"
+suppliers |o--o{ products : "supplies"
+
+products ||--o{ inventory : "stocked as"
+warehouses ||--o{ inventory : "holds"
+
+products ||--o{ product_batches : "has"
+warehouses ||--o{ product_batches : "stores"
+
+customers |o--o{ orders : "places"
+users ||--o{ orders : "processes (cashier)"
+warehouses ||--o{ orders : "fulfils"
+
+orders ||--o{ order_items : "contains"
+products ||--o{ order_items : "sold as"
+product_batches |o--o{ order_items : "fulfilled from"
+
+products ||--o{ stock_movements : "tracked by"
+warehouses ||--o{ stock_movements : "located at"
+users |o--o{ stock_movements : "performed by"
+
+products ||--o{ stock_transfers : "moved as"
+warehouses ||--o{ stock_transfers : "source"
+warehouses ||--o{ stock_transfers : "destination"
+users |o--o{ stock_transfers : "requested by"
+
+products ||--o{ alerts : "triggers"
+product_batches |o--o{ alerts : "triggers (expiry)"
+users |o--o{ alerts : "acknowledged by"
+
+users |o--o{ activity_logs : "performs"
+
+@enduml
