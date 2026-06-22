@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account — StockSmart</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand-900: #1a1f3a;
+      --brand-800: #232946;
+      --brand-700: #2e3561;
+      --brand-500: #4f5faa;
+      --brand-400: #6674c4;
+      --accent:    #5b6ef5;
+      --accent-h:  #4756e8;
+      --success:   #22c55e;
+      --error:     #ef4444;
+      --text-main: #1e2235;
+      --text-muted: #6b7280;
+      --border:    #e5e7eb;
+      --bg-input:  #f9fafb;
+      --radius:    10px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg-input);
+      display: flex;
+      align-items: stretch;
+      min-height: 100vh;
+    }
+
+    /* ──────────── LEFT PANEL ──────────── */
+    .left {
+      flex: 0 0 420px;
+      background: linear-gradient(155deg, var(--brand-900) 0%, var(--brand-700) 100%);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding: 44px 40px 48px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 48px; }
+    .brand-icon {
+      width: 42px; height: 42px;
+      background: rgba(255,255,255,.15);
+      border-radius: 10px;
+      display: grid; place-items: center;
+    }
+    .brand-name { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
+    .brand-name span { color: #a8b4ff; }
+    .brand-sub { font-size: 11px; opacity: .6; letter-spacing: .5px; text-transform: uppercase; }
+
+    .hero { flex: 1; }
+    .hero h1 { font-size: 32px; font-weight: 800; line-height: 1.22; margin-bottom: 14px; }
+    .highlight { color: #a8b4ff; }
+    .hero p { opacity: .75; font-size: 15px; line-height: 1.6; }
+
+    .features { display: flex; flex-direction: column; gap: 10px; margin-top: 32px; }
+    .feat-card {
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(255,255,255,.08);
+      border-radius: 8px; padding: 12px 16px;
+    }
+    .feat-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px; display: grid; place-items: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .feat-icon.orange { background: rgba(251,146,60,.2); }
+    .feat-icon.blue   { background: rgba(96,165,250,.2); }
+    .feat-icon.yellow { background: rgba(250,204,21,.2); }
+    .feat-label { font-size: 13.5px; font-weight: 500; opacity: .9; }
+
+    .stats {
+      display: flex; gap: 36px; margin-top: 32px;
+      padding-top: 24px; border-top: 1px solid rgba(255,255,255,.12);
+    }
+    .stat-val { font-size: 26px; font-weight: 800; }
+    .stat-label { font-size: 12px; opacity: .6; margin-top: 2px; }
+
+    /* ──────────── RIGHT PANEL ──────────── */
+    .right {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      background: #fff;
+    }
+
+    .form-box { width: 100%; max-width: 400px; }
+    .form-box h2 { font-size: 28px; font-weight: 800; color: var(--text-main); margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; }
+
+    /* Fields */
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 13px; font-weight: 600; color: var(--text-main);
+      margin-bottom: 6px;
+    }
+    .input-wrap { position: relative; }
+    .ico {
+      position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+      color: #9ca3af; pointer-events: none;
+      display: flex; align-items: center;
+    }
+    .input-wrap input {
+      width: 100%;
+      padding: 11px 14px 11px 40px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-input);
+      font-size: 14px; font-family: inherit;
+      color: var(--text-main);
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .input-wrap input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(91,110,245,.12);
+      background: #fff;
+    }
+    .input-wrap input.err { border-color: var(--error); }
+
+    .eye-btn {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: #9ca3af; padding: 4px; display: flex; align-items: center;
+    }
+    .eye-btn:hover { color: var(--text-main); }
+
+    .field-err {
+      font-size: 12px; color: var(--error);
+      margin-top: 4px; display: none;
+    }
+    .field-err.show { display: block; }
+
+    /* Row of two fields side by side */
+    .field-row { display: flex; gap: 14px; }
+    .field-row .field { flex: 1; }
+
+    /* Submit button */
+    .btn-register {
+      width: 100%; padding: 13px;
+      background: var(--accent);
+      color: #fff; border: none; border-radius: var(--radius);
+      font-size: 15px; font-weight: 700; font-family: inherit;
+      cursor: pointer; margin-top: 6px;
+      transition: background .15s, box-shadow .15s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      position: relative;
+    }
+    .btn-register:hover:not(:disabled) { background: var(--accent-h); box-shadow: 0 4px 16px rgba(91,110,245,.35); }
+    .btn-register:active:not(:disabled) { transform: scale(.99); }
+    .btn-register:disabled { opacity: .75; cursor: not-allowed; }
+
+    .btn-register .spn { display: none; }
+    .btn-register.loading .btn-lbl { opacity: 0; }
+    .btn-register.loading .spn {
+      display: flex; position: absolute;
+      left: 50%; top: 50%; transform: translate(-50%,-50%);
+    }
+    .spn-ring {
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: rot .7s linear infinite;
+    }
+    @keyframes rot { to { transform: rotate(360deg); } }
+
+    /* Login link */
+    .login-line {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13.5px; color: var(--text-muted);
+    }
+    .login-line a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .login-line a:hover { text-decoration: underline; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: #1e2235; color: #fff;
+      padding: 11px 22px; border-radius: 8px;
+      font-size: 14px; font-weight: 500;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s, transform .25s;
+      white-space: nowrap; z-index: 9999;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .left { display: none; }
+      .right { background: #f8f9fb; }
+    }
+    @media (max-width: 480px) {
+      .right { padding: 24px 16px 36px; }
+      .field-row { flex-direction: column; gap: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ════ LEFT PANEL ════ -->
+  <aside class="left">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+          <rect x="3" y="3" width="9" height="9" rx="2" fill="white" opacity=".9"/>
+          <rect x="14" y="3" width="9" height="9" rx="2" fill="white" opacity=".6"/>
+          <rect x="3" y="14" width="9" height="9" rx="2" fill="white" opacity=".6"/>
+          <rect x="14" y="14" width="9" height="9" rx="2" fill="white" opacity=".85"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Stock<span>Smart</span></div>
+        <div class="brand-sub">Inventory OS</div>
+      </div>
+    </div>
+
+    <div class="hero">
+      <h1>Join the<br><span class="highlight">Smarter</span> way to manage stock.</h1>
+      <p>Create your account and get instant access to real-time inventory tracking, automated alerts, and checkout management.</p>
+    </div>
+
+    <div class="features">
+      <div class="feat-card">
+        <div class="feat-icon orange">📦</div>
+        <span class="feat-label">Real-time inventory tracking</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon blue">📊</div>
+        <span class="feat-label">AI-powered demand forecasting</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon yellow">⚡</div>
+        <span class="feat-label">Automated reorder workflows</span>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div>
+        <div class="stat-val">99.9%</div>
+        <div class="stat-label">Uptime SLA</div>
+      </div>
+      <div>
+        <div class="stat-val">2.4M</div>
+        <div class="stat-label">Items tracked</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════ RIGHT PANEL ════ -->
+  <main class="right">
+    <div class="form-box">
+      <h2>Create account</h2>
+      <p class="subtitle">Fill in your details to get started.</p>
+
+      <form id="registerForm" novalidate>
+
+        <!-- Full Name -->
+        <div class="field">
+          <label for="fullName">Full Name</label>
+          <div class="input-wrap">
+            <span class="ico">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+            </span>
+            <input type="text" id="fullName" placeholder="Your full name" autocomplete="name" />
+          </div>
+          <span class="field-err" id="fullName-err">Full name is required.</span>
+        </div>
+
+        <!-- Username + Email row -->
+        <div class="field-row">
+          <div class="field">
+            <label for="username">Username</label>
+            <div class="input-wrap">
+              <span class="ico">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+              </span>
+              <input type="text" id="username" placeholder="e.g. jane.doe" autocomplete="username" />
+            </div>
+            <span class="field-err" id="username-err">3–50 chars, letters/numbers/._- only.</span>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <div class="input-wrap">
+              <span class="ico">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/>
+                </svg>
+              </span>
+              <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+            </div>
+            <span class="field-err" id="email-err">Enter a valid email address.</span>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <span class="ico">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </span>
+            <input type="password" id="password" placeholder="At least 8 characters" autocomplete="new-password" />
+            <button type="button" class="eye-btn" id="eyeBtn1" aria-label="Toggle password">
+              <svg id="eyeSvg1" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <span class="field-err" id="pwd-err">Password must be at least 8 characters.</span>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="field">
+          <label for="confirmPassword">Confirm Password</label>
+          <div class="input-wrap">
+            <span class="ico">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </span>
+            <input type="password" id="confirmPassword" placeholder="Re-enter your password" autocomplete="new-password" />
+            <button type="button" class="eye-btn" id="eyeBtn2" aria-label="Toggle confirm password">
+              <svg id="eyeSvg2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
+          <span class="field-err" id="confirm-err">Passwords do not match.</span>
+        </div>
+
+        <button type="submit" class="btn-register" id="registerBtn">
+          <span class="btn-lbl">Create Account</span>
+          <span class="spn"><span class="spn-ring"></span></span>
+        </button>
+      </form>
+
+      <p class="login-line">Already have an account? <a href="login.html">Sign in</a></p>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── Password toggles ──
+    function makeToggle(btnId, svgId, inputId) {
+      let shown = false;
+      document.getElementById(btnId).addEventListener('click', () => {
+        shown = !shown;
+        document.getElementById(inputId).type = shown ? 'text' : 'password';
+        document.getElementById(svgId).innerHTML = shown
+          ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+          : `<path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12Z"/><circle cx="12" cy="12" r="3"/>`;
+      });
+    }
+    makeToggle('eyeBtn1', 'eyeSvg1', 'password');
+    makeToggle('eyeBtn2', 'eyeSvg2', 'confirmPassword');
+
+    // ── Toast ──
+    function toast(msg, ms = 3500) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    // ── Validation helpers ──
+    const validName     = v => v.trim().length >= 2;
+    const validUsername = v => /^[a-zA-Z0-9._-]{3,50}$/.test(v.trim());
+    const validEmail    = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+    const validPwd      = v => v.length >= 8;
+
+    function setField(inputEl, errEl, ok) {
+      inputEl.classList.toggle('err', !ok);
+      errEl.classList.toggle('show', !ok);
+    }
+
+    // Inline blur validation
+    const fields = [
+      ['fullName',        'fullName-err',  () => validName(document.getElementById('fullName').value)],
+      ['username',        'username-err',  () => validUsername(document.getElementById('username').value)],
+      ['email',           'email-err',     () => validEmail(document.getElementById('email').value)],
+      ['password',        'pwd-err',       () => validPwd(document.getElementById('password').value)],
+      ['confirmPassword', 'confirm-err',   () => document.getElementById('confirmPassword').value === document.getElementById('password').value],
+    ];
+    fields.forEach(([id, errId, fn]) => {
+      document.getElementById(id).addEventListener('blur', () => {
+        const el = document.getElementById(id);
+        if (el.value) setField(el, document.getElementById(errId), fn());
+      });
+    });
+
+    // ── Submit ──
+    const form        = document.getElementById('registerForm');
+    const registerBtn = document.getElementById('registerBtn');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+
+      // Validate all fields
+      const checks = fields.map(([id, errId, fn]) => {
+        const el  = document.getElementById(id);
+        const ok  = fn();
+        setField(el, document.getElementById(errId), ok);
+        return ok;
+      });
+      if (checks.includes(false)) return;
+
+      registerBtn.classList.add('loading');
+      registerBtn.disabled = true;
+
+      try {
+        const res = await fetch('register.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name:        document.getElementById('fullName').value.trim(),
+            username:         document.getElementById('username').value.trim(),
+            email:            document.getElementById('email').value.trim(),
+            password:         document.getElementById('password').value,
+            confirm_password: document.getElementById('confirmPassword').value,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          toast('✓ Account created! Redirecting to dashboard…');
+          setTimeout(() => { window.location.href = data.redirect || 'dashboard.php'; }, 1000);
+        } else {
+          toast('✗ ' + (data.error || 'Registration failed. Please try again.'));
+          registerBtn.classList.remove('loading');
+          registerBtn.disabled = false;
+        }
+      } catch (err) {
+        toast('✗ Network error. Please check your connection and try again.');
+        registerBtn.classList.remove('loading');
+        registerBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
