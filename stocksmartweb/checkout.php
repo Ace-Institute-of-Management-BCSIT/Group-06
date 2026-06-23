@@ -242,7 +242,7 @@ function money($v) {
   .item-row:hover{background:rgba(255,255,255,0.05);}
   .item-name{font-weight:600;font-size:14.5px;}
   .item-sku{font-size:11px;color:#9aa3d6;margin-top:2px;}
-  .item-img{font-size:26px;text-align:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,.25));}
+  .item-img{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:8px;background:var(--bg, #f4f4f8);flex-shrink:0;}
   .item-disc{color:#d6daf9;}
   .item-price{text-align:right;font-weight:600;}
   .qty-control{display:flex;align-items:center;gap:6px;}
@@ -341,7 +341,7 @@ function money($v) {
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
 <aside class="sidebar" id="sidebar">
-  <a class="brand" href="homepage.html">
+  <a class="brand" href="index.html">
     <div class="brand-mark">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>
@@ -413,7 +413,7 @@ function money($v) {
           <div class="item-name"><?= htmlspecialchars($item["name"]) ?></div>
           <div class="item-sku"><?= htmlspecialchars($item["sku"]) ?></div>
         </span>
-        <span class="item-img"><?= $item["img"] ?></span>
+        <span class="item-img"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;opacity:0.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
         <span class="item-disc"><?= $item["disc"] ?></span>
         <span class="item-price line-price"><?= money($item["price"]) ?></span>
         <span class="remove-btn" title="Remove item">✕</span>
@@ -427,15 +427,15 @@ function money($v) {
     <div class="payment-title">Select Payment Details</div>
     <div class="methods" id="methods">
       <div class="method-card" data-method="Card Payment">
-        <div class="method-icon">💳</div>
+        <div class="method-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>
         <div class="method-label">Card Payment</div>
       </div>
       <div class="method-card" data-method="QR Scan">
-        <div class="method-icon">📱</div>
+        <div class="method-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
         <div class="method-label">QR Scan</div>
       </div>
       <div class="method-card" data-method="Contactless">
-        <div class="method-icon">📶</div>
+        <div class="method-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
         <div class="method-label">Contactless</div>
       </div>
       <div class="method-card" data-method="Nepal Pay Wallet">
@@ -487,7 +487,7 @@ function money($v) {
       background:none;border:1px solid #d0d5e8;color:#9aa3d6;
       font-size:11px;padding:5px 14px;border-radius:6px;cursor:pointer;
       transition:all .15s ease;">
-      🔄 Reset Demo Cart
+      Reset Demo Cart
     </button>
   </div>
 </div>
@@ -570,7 +570,7 @@ function money($v) {
     }
 
     if (itemCount === 0){
-      itemsList.innerHTML    = '<div class="empty-cart">🛒 Cart is empty — nothing to pay for.</div>';
+      itemsList.innerHTML    = '<div class="empty-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:28px;height:28px;opacity:0.4;display:block;margin:0 auto 8px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg> Cart is empty — nothing to pay for.</div>';
       payBtn.disabled        = true;
       payBtn.textContent     = 'NO ITEMS TO PAY';
     } else if (selectedMethod && !isPaid){
@@ -722,14 +722,14 @@ function money($v) {
     .then(({ok, data}) => {
       setTimeout(() => {
         if (!ok){
-          showModal(`<div class="icon">⚠️</div><h3>Payment Failed</h3>
+          showModal(`<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;color:#e07b39"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><h3>Payment Failed</h3>
             <p>${data.error || 'Could not save this sale. Please try again.'}</p>
             <button id="closeModalBtn">Close</button>`);
           document.getElementById('closeModalBtn').addEventListener('click',
             () => modalOverlay.classList.remove('show'));
           return;
         }
-        showModal(`<div class="icon">✅</div><h3>Payment Successful</h3>
+        showModal(`<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;color:#2e7d4f"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg></div><h3>Payment Successful</h3>
           <p>${fmt(amount)} ${currency} paid via ${selectedMethod}.</p>
           <p style="opacity:.7;font-size:.85em;margin-top:4px;">Order ${data.orderNumber} saved.</p>
           <button id="closeModalBtn">Done</button>`);
@@ -751,7 +751,7 @@ function money($v) {
     })
     .catch(() => {
       setTimeout(() => {
-        showModal(`<div class="icon">⚠️</div><h3>Payment Failed</h3>
+        showModal(`<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:32px;height:32px;color:#e07b39"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><h3>Payment Failed</h3>
           <p>Network error: could not reach the server.</p>
           <button id="closeModalBtn">Close</button>`);
         document.getElementById('closeModalBtn').addEventListener('click',

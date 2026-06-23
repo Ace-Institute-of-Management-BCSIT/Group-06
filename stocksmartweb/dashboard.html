@@ -553,8 +553,7 @@ tbody tr:last-child td{ border-bottom:none; }
 .prod-thumb{
   width:34px; height:34px;
   border-radius:9px;
-  display:grid; place-items:center;
-  font-size:14px;
+  display:flex; align-items:center; justify-content:center;
   flex-shrink:0;
 }
 
@@ -723,7 +722,7 @@ tbody tr:last-child td{ border-bottom:none; }
 
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar" id="sidebar">
-    <a class="brand" href="homepage.html" aria-label="StockSmart home">
+    <a class="brand" href="index.html" aria-label="StockSmart home">
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
       </div>
@@ -1100,7 +1099,7 @@ function renderLowStock(rows){
       <tr>
         <td>
           <div class="prod-cell">
-            <div class="prod-thumb" style="background:${palette[i % palette.length]}">📦</div>
+            <div class="prod-thumb" style="background:${palette[i % palette.length]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;opacity:0.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
             <span class="cell-strong">${r.name}</span>
           </div>
         </td>

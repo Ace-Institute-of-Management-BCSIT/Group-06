@@ -74,7 +74,7 @@ function cart_get_items(PDO $pdo): array
             'qty'       => $qty,
             'name'      => $row['product_name'],
             'sku'       => $row['sku'],
-            'img'       => $row['icon_emoji'] ?: '📦',
+            'img'       => $row['icon_emoji'] ?: '',
             'disc'      => 0,
             'unit'      => (float)$row['price'],
             'price'     => round($qty * (float)$row['price'], 2),
