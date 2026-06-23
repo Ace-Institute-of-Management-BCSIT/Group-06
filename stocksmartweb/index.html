@@ -291,7 +291,7 @@ h1 .accent { color: var(--col-navy); }
   padding: 9px 11px; border-radius: var(--shape-sm);
   background: var(--md-surface); border: 1px solid var(--md-outline-variant);
 }
-.inv-icon { width: 30px; height: 30px; border-radius: var(--shape-xs); display: flex; align-items: center; justify-content: center; font-size: .875rem; flex-shrink: 0; }
+.inv-icon { width: 30px; height: 30px; border-radius: var(--shape-xs); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .inv-info { flex: 1; min-width: 0; }
 .inv-name { font-size: .78rem; font-weight: 600; color: var(--md-on-surface); }
 .inv-sub  { font-size: .68rem; color: var(--md-on-surface-variant); }
@@ -312,7 +312,7 @@ h1 .accent { color: var(--col-navy); }
 .float-card.top-left  { top: -22px; left: -28px; animation-delay: 0s; }
 .float-card.bottom-right { bottom: -18px; right: -24px; animation-delay: 1.8s; }
 .float-inner { display: flex; align-items: center; gap: 8px; }
-.float-icon { font-size: 1.05rem; }
+.float-icon { display:flex; align-items:center; justify-content:center; }
 .float-val { font-family: var(--font-display); font-size: .82rem; font-weight: 700; color: var(--md-on-surface); }
 .float-sub { font-size: .66rem; color: var(--md-on-surface-variant); }
 
@@ -484,7 +484,7 @@ footer {
 
 <!-- NAV -->
 <nav id="nav">
-  <a href="index.html" class="logo">
+  <a href="homepage.html" class="logo">
     <div class="logo-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -562,7 +562,7 @@ footer {
     <div class="hero-visual">
       <div class="float-card top-left">
         <div class="float-inner">
-          <div class="float-icon">📦</div>
+          <div class="float-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
           <div>
             <div class="float-val">+12.4% stock in</div>
             <div class="float-sub">vs last week</div>
@@ -613,7 +613,7 @@ footer {
 
         <div class="inv-list">
           <div class="inv-item">
-            <div class="inv-icon" style="background:var(--md-tertiary-container);">🖥️</div>
+            <div class="inv-icon" style="background:var(--md-tertiary-container);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
             <div class="inv-info">
               <div class="inv-name">Monitors XK4</div>
               <div class="inv-sub">Electronics · 142 units</div>
@@ -622,7 +622,7 @@ footer {
             <div class="inv-pct">78%</div>
           </div>
           <div class="inv-item">
-            <div class="inv-icon" style="background:var(--amber-container);">📱</div>
+            <div class="inv-icon" style="background:var(--amber-container);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></div>
             <div class="inv-info">
               <div class="inv-name">Tablets Pro</div>
               <div class="inv-sub">Electronics · 31 units</div>
@@ -631,7 +631,7 @@ footer {
             <div class="inv-pct" style="color:var(--amber-on);">22%</div>
           </div>
           <div class="inv-item">
-            <div class="inv-icon" style="background:var(--green-container);">🎧</div>
+            <div class="inv-icon" style="background:var(--green-container);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
             <div class="inv-info">
               <div class="inv-name">Headsets ZX</div>
               <div class="inv-sub">Audio · 289 units</div>
@@ -644,7 +644,7 @@ footer {
 
       <div class="float-card bottom-right">
         <div class="float-inner">
-          <div class="float-icon">⚡</div>
+          <div class="float-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
           <div>
             <div class="float-val">Auto-reorder triggered</div>
             <div class="float-sub">Tablets Pro · just now</div>
@@ -782,7 +782,7 @@ footer {
 <!-- FOOTER -->
 <footer>
   <div class="footer-inner">
-    <a href="index.html" class="logo">
+    <a href="homepage.html" class="logo">
       <div class="logo-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
           <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
