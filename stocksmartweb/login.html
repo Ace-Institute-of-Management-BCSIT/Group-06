@@ -156,7 +156,7 @@
       border-color: rgba(91,110,245,.3);
     }
 
-    .feat-icon {
+    .feat-icon { display:flex; align-items:center; justify-content:center;
       width: 38px;
       height: 38px;
       border-radius: var(--radius-sm);
@@ -585,15 +585,15 @@
 
     <div class="features">
       <div class="feat-card">
-        <div class="feat-icon orange">📦</div>
+        <div class="feat-icon orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
         <span class="feat-label">Real-time inventory tracking</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon blue">📊</div>
+        <div class="feat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg></div>
         <span class="feat-label">AI-powered demand forecasting</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon yellow">⚡</div>
+        <div class="feat-icon yellow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
         <span class="feat-label">Automated reorder workflows</span>
       </div>
     </div>
@@ -774,15 +774,15 @@
         const data = await res.json();
 
         if (res.ok && data.ok) {
-          toast('✓ Logged in successfully! Redirecting…');
+          toast('Logged in successfully! Redirecting…');
           setTimeout(() => { window.location.href = data.redirect || 'dashboard.php'; }, 800);
         } else {
-          toast('✗ ' + (data.error || 'Login failed. Please try again.'));
+          toast( (data.error || 'Login failed. Please try again.'));
           loginBtn.classList.remove('loading');
           loginBtn.disabled = false;
         }
       } catch (err) {
-        toast('✗ Network error. Please check your connection and try again.');
+        toast('Network error. Please check your connection and try again.');
         loginBtn.classList.remove('loading');
         loginBtn.disabled = false;
       }
