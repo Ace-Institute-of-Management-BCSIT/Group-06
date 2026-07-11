@@ -20,21 +20,28 @@
  *  On failure:
  *    - Returns the appropriate HTTP status + { "error": "..." }
  *
- *  GET register.php → redirects to register.html (convenience redirect)
+ *  GET register.php → renders the session-aware registration page
  * ============================================================================
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';   // starts session + provides $pdo
+require_once __DIR__ . '/helpers/validation.php';
+require_once __DIR__ . '/helpers/mailer.php';
 
-header('Content-Type: application/json; charset=utf-8');
-
-/* ── GET: redirect to the registration form ─────────────────────────── */
+/* ── GET: render the registration form ───────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    header('Location: register.html');
+    if (!empty($_SESSION['user_id'])) {
+        header('Location: dashboard.php');
+        exit;
+    }
+    require_once __DIR__ . '/page_renderer.php';
+    render_ui_template('register.html');
     exit;
 }
+
+header('Content-Type: application/json; charset=utf-8');
 
 /* ── Only POST beyond this point ─────────────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -54,6 +61,7 @@ if (!is_array($body)) {
 $fullName        = trim((string)($body['full_name']        ?? ''));
 $username        = trim((string)($body['username']         ?? ''));
 $email           = trim((string)($body['email']            ?? ''));
+$phone           = trim((string)($body['phone']             ?? ''));
 $password        = (string)($body['password']              ?? '');
 $confirmPassword = (string)($body['confirm_password']      ?? '');
 
@@ -76,8 +84,13 @@ if ($email === '') {
     $errors[] = 'Please enter a valid email address.';
 }
 
-if (strlen($password) < 8) {
-    $errors[] = 'Password must be at least 8 characters.';
+if (!validate_phone($phone)) {
+    $errors[] = 'Please enter a valid phone number.';
+}
+
+$passwordIssues = validate_password_strength($password);
+if (!empty($passwordIssues)) {
+    $errors[] = 'Password must ' . implode(', ', $passwordIssues) . '.';
 }
 
 if ($password !== $confirmPassword) {
@@ -121,18 +134,26 @@ if (!$roleRow) {
 /* ── Hash the password ──────────────────────────────────────────────── */
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-/* ── Insert the new user ────────────────────────────────────────────── */
+/* ── Generate the email OTP (6 digits, 10-minute expiry) ──────────────── */
+$otp = (string) random_int(100000, 999999);
+$otpExpiresAt = date('Y-m-d H:i:s', time() + 600);
+
+/* ── Insert the new user as pending until the OTP is verified ─────────── */
 try {
     $stmt = $pdo->prepare("
-        INSERT INTO users (full_name, username, email, password_hash, role_id, avatar_emoji, status)
-        VALUES (:full_name, :username, :email, :password_hash, :role_id, '🧑', 'active')
+        INSERT INTO users (full_name, username, email, phone, password_hash, role_id, avatar_emoji, status, otp_code, otp_expires_at)
+        VALUES (:full_name, :username, :email, :phone, :password_hash, :role_id, :avatar, 'pending', :otp, :otp_expires)
     ");
     $stmt->execute([
         ':full_name'     => $fullName,
         ':username'      => $username,
         ':email'         => $email,
+        ':phone'         => $phone !== '' ? $phone : null,
         ':password_hash' => $passwordHash,
         ':role_id'       => $staffRoleId,
+        ':avatar'        => strtoupper(substr($fullName, 0, 1)),
+        ':otp'           => $otp,
+        ':otp_expires'   => $otpExpiresAt,
     ]);
     $newUserId = (int) $pdo->lastInsertId();
 } catch (PDOException $e) {
@@ -149,34 +170,27 @@ try {
 try {
     $pdo->prepare(
         "INSERT INTO activity_logs (user_id, activity_type, entity_type, entity_id, description)
-         VALUES (:uid, 'add', 'users', :uid, :desc)"
+         VALUES (:uid, 'add', 'users', :eid, :desc)"
     )->execute([
         ':uid'  => $newUserId,
-        ':desc' => $fullName . ' registered a new account',
+        ':eid'  => $newUserId,
+        ':desc' => $fullName . ' registered a new account (pending email verification)',
     ]);
 } catch (Throwable $e) {
     // Non-fatal
 }
 
-/* ── Auto-login: session fixation protection then write session ──────── */
-session_regenerate_id(true);
+/* ── Send the OTP email (dev-log driver by default, see helpers/mailer.php) */
+$mailResult = mail_send($email, 'Verify your StockSmart account', mail_render_otp($fullName, $otp));
 
-$_SESSION['user_id']   = $newUserId;
-$_SESSION['user_name'] = $fullName;
-$_SESSION['username']  = $username;
-$_SESSION['user_role'] = 'Staff';
-$_SESSION['avatar']    = '🧑';
-
+/* ── Track the pending user in-session so verify-otp.php knows who this is ── */
+$_SESSION['pending_verify_user_id'] = $newUserId;
 session_write_close();
 
 /* ── Respond ────────────────────────────────────────────────────────── */
 echo json_encode([
-    'ok'       => true,
-    'redirect' => 'dashboard.php',
-    'user'     => [
-        'id'     => $newUserId,
-        'name'   => $fullName,
-        'role'   => 'Staff',
-        'avatar' => '🧑',
-    ],
+    'ok'          => true,
+    'redirect'    => 'verify-otp.php?user_id=' . $newUserId . '&email=' . urlencode($email),
+    'user_id'     => $newUserId,
+    'otp_preview' => $mailResult['driver'] === 'log' ? $otp : null,
 ]);

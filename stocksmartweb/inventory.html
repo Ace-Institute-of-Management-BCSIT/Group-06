@@ -6,60 +6,17 @@
 <title>StockSmart — Inventory</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/app.css">
 <style>
-
-/* ============================================================
-   StockSmart Inventory — standalone demo build
-   No backend / no DB calls. All data lives in the SAMPLE_DATA
-   object near the bottom of the <script> block. Swap that
-   object (or point it at a real fetch()) and every render
-   function below picks it up automatically — markup and CSS
-   don't need to change. Search to instructions on reconnect
-   below.
-   ============================================================ */
 
 /* ============================================================
    StockSmart Inventory — unified design system v2
    Shares the exact token set, signature accent-rail motif, and
-   sidebar treatment with dashboard.html. All data lives in the
-   SAMPLE_DATA object near the bottom of the <script> block —
-   swap it (or point it at a real fetch()) and every render
-   function picks it up automatically.
+   sidebar treatment with dashboard.html. Data is fetched live
+   from api/inventory.php (see the LIVE DATA section of the
+   <script> block below).
    ============================================================ */
 
-:root{
-  --navy-900: #0b1530;
-  --navy-800: #11204a;
-  --navy-700: #16307a;
-  --navy-600: #1d3f9e;
-  --accent: #5b6ef5;
-  --accent-light: #8b97ff;
-  --accent-dim: #e8eaff;
-  --ice: #eef1fc;
-  --bg: #f5f6fb;
-  --surface: #ffffff;
-  --line: #e8e9f3;
-  --text-900: #0f1226;
-  --text-700: #2c2f47;
-  --text-600: #50546b;
-  --text-500: #686c85;
-  --text-400: #9599ab;
-  --green: #169e63;
-  --green-bg: #e9f9f0;
-  --amber: #c9790f;
-  --amber-bg: #fdf3e3;
-  --red: #d8413f;
-  --red-bg: #fcecec;
-  --purple: #8454e8;
-  --purple-bg: #f2ecfd;
-  --radius-lg: 18px;
-  --radius-md: 14px;
-  --shadow-sm: 0 1px 2px rgba(15,18,38,.05), 0 1px 3px rgba(15,18,38,.05);
-  --shadow-md: 0 4px 16px rgba(15,18,38,.07), 0 1px 3px rgba(15,18,38,.04);
-  --shadow-lg: 0 14px 36px rgba(11,21,48,.12);
-  --sidebar-w: 264px;
-  --ease: cubic-bezier(.22,1,.36,1);
-}
 
 *{ margin:0; padding:0; box-sizing:border-box; font-family:'Inter', Arial, Helvetica, sans-serif; }
 
@@ -76,190 +33,8 @@ a{ color:inherit; text-decoration:none; }
 
 :focus-visible{ outline:2.5px solid var(--accent); outline-offset:2px; }
 
-/* ================= Sidebar (identical to dashboard.html) ================= */
-.sidebar{
-  width:var(--sidebar-w);
-  min-height:100vh;
-  position:fixed;
-  top:0; left:0;
-  background:linear-gradient(195deg, var(--navy-900) 0%, var(--navy-800) 55%, var(--navy-700) 100%);
-  color:#dce1f7;
-  padding:26px 18px 22px;
-  display:flex;
-  flex-direction:column;
-  z-index:40;
-  transition:transform .3s var(--ease);
-}
-
-.brand{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:4px 8px 26px;
-  margin-bottom:14px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-  text-decoration:none;
-  color:inherit;
-  cursor:pointer;
-  transition:opacity .15s var(--ease);
-}
-.brand:hover{ opacity:.88; }
-.brand-mark{
-  width:38px; height:38px;
-  border-radius:11px;
-  background:linear-gradient(135deg, var(--accent), #9a5cf0);
-  display:grid; place-items:center;
-  box-shadow:0 4px 14px rgba(91,110,245,.45);
-  flex-shrink:0;
-}
-.brand-mark svg{ width:20px; height:20px; }
-.brand-text{ font-size:18.5px; font-weight:800; color:#fff; letter-spacing:-.02em; }
-.brand-text span{ color:var(--accent-light); font-weight:800; }
-.brand-sub{ font-size:10.5px; color:#7986bd; letter-spacing:.05em; margin-top:1px; }
-
-.nav-scroll{ flex:1; overflow-y:auto; }
-
-.menu-title{
-  color:#5f6aa3;
-  font-size:10.5px;
-  font-weight:700;
-  letter-spacing:.09em;
-  margin:20px 10px 9px;
-}
-
-.menu{ list-style:none; display:flex; flex-direction:column; gap:3px; }
-
-.menu-item{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:10px 12px;
-  border-radius:11px;
-  font-size:13.6px;
-  font-weight:500;
-  color:#b6bee3;
-  position:relative;
-  transition:background .18s var(--ease), color .18s var(--ease);
-}
-.menu-item .left{ display:flex; align-items:center; gap:11px; text-decoration:none; color:inherit; flex:1; }
-.menu-item svg{ width:18px; height:18px; opacity:.85; flex-shrink:0; }
-
-.menu-item:hover{
-  background:rgba(255,255,255,.07);
-  color:#fff;
-}
-
-.menu-item.active{
-  background:linear-gradient(90deg, var(--accent) 0%, #7b6af2 100%);
-  color:#fff;
-  box-shadow:0 6px 16px rgba(91,110,245,.35);
-}
-.menu-item.active svg{ opacity:1; }
-
-.badge{
-  font-size:10.5px;
-  font-weight:700;
-  padding:2.5px 8px;
-  border-radius:20px;
-  color:#fff;
-  line-height:1.4;
-}
-.badge.amber{ background:var(--amber); }
-.badge.red{ background:var(--red); }
-
-.sidebar-bottom{
-  margin-top:18px;
-  padding-top:16px;
-  border-top:1px solid rgba(255,255,255,.08);
-}
-
-.upgrade-card{
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:var(--radius-md);
-  padding:14px;
-  margin-bottom:14px;
-}
-.upgrade-card p{ font-size:11.5px; color:#aab2e0; line-height:1.5; margin-bottom:10px; }
-.upgrade-card .title{ font-size:13px; font-weight:700; color:#fff; margin-bottom:4px; }
-.upgrade-btn{
-  display:block;
-  text-align:center;
-  background:#fff;
-  color:var(--navy-900);
-  font-size:12px;
-  font-weight:700;
-  padding:8px;
-  border-radius:9px;
-  transition:transform .15s var(--ease);
-}
-.upgrade-btn:hover{ transform:translateY(-1px); }
-
-.profile-mini{
-  display:flex;
-  align-items:center;
-  gap:11px;
-  padding:8px;
-  border-radius:12px;
-  transition:background .18s var(--ease);
-}
-.profile-mini:hover{ background:rgba(255,255,255,.06); }
-
-.avatar{
-  width:38px; height:38px;
-  border-radius:50%;
-  background:linear-gradient(135deg,#7b6af2,#9a5cf0);
-  display:grid; place-items:center;
-  font-size:13px; font-weight:700; color:#fff;
-  flex-shrink:0;
-}
-.avatar.sm{ width:34px; height:34px; font-size:12px; }
-
-.profile-mini b{ font-size:13px; color:#fff; display:block; }
-.profile-mini p{ font-size:11px; color:#8b96c9; margin-top:1px; }
-.profile-mini .chev{ margin-left:auto; opacity:.6; }
-
-/* profile-circle: used in top header (not sidebar) */
-.profile-circle {
-    width: 38px;
-    height: 38px;
-    background: linear-gradient(135deg,#7b6af2,#9a5cf0);
-    color: #fff;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    font-size: 13px;
-    flex-shrink: 0;
-}
-
-/* mobile sidebar toggle */
-.sidebar-toggle{
-  display:none;
-  position:fixed;
-  top:16px; left:16px;
-  z-index:60;
-  width:42px; height:42px;
-  background:var(--navy-900);
-  border-radius:11px;
-  align-items:center;
-  justify-content:center;
-  box-shadow:var(--shadow-md);
-}
-.sidebar-toggle svg{ width:20px; height:20px; color:#fff; }
-.sidebar-backdrop{
-  display:none;
-  position:fixed; inset:0;
-  background:rgba(11,21,48,.45);
-  z-index:35;
-}
-
-/* ================= Main ================= */
-.main-content {
-    margin-left: var(--sidebar-w);
-    min-height: 100vh;
-}
+/* Sidebar (brand/nav/badges/avatar/mobile-toggle), .app grid, and .main are
+   now owned entirely by assets/css/app.css — no local overrides. */
 
 .top-header {
     min-height: 70px;
@@ -756,12 +531,7 @@ a{ color:inherit; text-decoration:none; }
 }
 
 @media (max-width: 880px) {
-    .sidebar{ transform: translateX(-100%); box-shadow: var(--shadow-lg); }
-    .sidebar.open{ transform: translateX(0); }
-    .sidebar-toggle{ display:grid; }
-    .sidebar-backdrop.show{ display:block; }
-    .main-content { margin-left: 0; }
-    .top-header{ padding: 14px 18px 14px 64px; }
+    /* sidebar off-canvas behavior now owned by assets/css/app.css */
 }
 
 @media (max-width: 800px) {
@@ -783,128 +553,91 @@ a{ color:inherit; text-decoration:none; }
   *{ animation-duration:.001s !important; transition-duration:.001s !important; }
 }
 
+/* ================= Modal, toast & notif dropdown (added) ================= */
+.overlay{
+  position:fixed;inset:0;background:rgba(15,18,40,0.45);
+  display:none;align-items:center;justify-content:center;z-index:200;
+  backdrop-filter:blur(2px);
+}
+.overlay.open{display:flex;}
+.modal{
+  background:var(--surface);border-radius:16px;width:440px;max-width:92vw;
+  box-shadow:0 20px 60px rgba(15,18,40,0.25);animation:pop .16s ease;
+}
+@keyframes pop{from{transform:scale(.96);opacity:0;}to{transform:scale(1);opacity:1;}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line);}
+.modal-head h3{margin:0;font-size:16px;color:var(--text-900);}
+.modal-head button{background:none;border:none;font-size:18px;color:var(--text-400);cursor:pointer;}
+.modal-body{padding:20px;display:grid;gap:14px;max-height:60vh;overflow-y:auto;}
+.modal .field label{display:block;font-size:12.5px;font-weight:600;color:var(--text-600);margin-bottom:6px;}
+.modal .field input, .modal .field select{
+  width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--line);
+  font-size:13.5px;outline:none;background:#fff;color:var(--text-900);
+}
+.modal .field input:focus, .modal .field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,110,245,.16);}
+.modal .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal .hint{font-size:12px;color:var(--text-400);margin-top:-6px;}
+.modal .type-toggle{display:flex;gap:8px;}
+.modal .type-toggle button{
+  flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  font-weight:600;font-size:12.5px;color:var(--text-600);cursor:pointer;transition:all .15s var(--ease);
+}
+.modal .type-toggle button.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--line);}
+.btn-secondary{padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:13px;cursor:pointer;color:var(--text-600);}
+.btn-primary{padding:9px 18px;border-radius:9px;border:none;background:var(--accent);color:#fff;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-primary:hover{background:#4456d6;}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;}
+
+.toast{
+  position:fixed;bottom:24px;right:24px;background:#0f1226;color:#fff;
+  padding:13px 18px;border-radius:10px;font-size:13.5px;font-weight:600;
+  box-shadow:0 10px 30px rgba(0,0,0,0.25);display:flex;align-items:center;gap:10px;
+  transform:translateY(20px);opacity:0;transition:transform .25s ease, opacity .25s ease;z-index:300;
+  max-width:360px;
+}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.error{background:var(--red);}
+.toast .dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.toast.error .dot{background:#fff;}
+
+.notif-panel{
+  position:absolute;top:56px;right:24px;width:320px;max-height:400px;overflow-y:auto;
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow-lg);display:none;z-index:150;
+}
+.notif-panel.open{display:block;}
+.notif-panel h4{font-size:13px;padding:14px 16px 8px;margin:0;color:var(--text-600);}
+.notif-panel .notif-row{padding:10px 16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--text-700);}
+.notif-panel .notif-row b{display:block;font-size:12.5px;color:var(--text-900);margin-bottom:2px;}
+.notif-panel .notif-empty{padding:20px 16px;text-align:center;color:var(--text-400);font-size:12.5px;}
+.notif-panel .notif-row{cursor:pointer;}
+.notif-panel .notif-row.unread b::before{content:'\25CF ';color:var(--accent,#5b6ef5);font-size:9px;}
+
+.account-menu{
+  position:absolute;top:52px;right:0;width:200px;background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);
+  display:none;flex-direction:column;padding:6px;z-index:150;
+}
+.account-menu.open{display:flex;}
+.account-menu a{padding:9px 12px;border-radius:8px;font-size:13px;color:var(--text-900);text-decoration:none;font-weight:500;}
+.account-menu a:hover{background:var(--accent-dim);color:var(--accent);}
+.account-menu a.danger{color:var(--red);}
+.account-menu a.danger:hover{background:var(--red-bg);}
+
+
 </style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
 </head>
 <body>
 
-<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-</button>
-<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<div class="app">
+<!--SIDEBAR-->
 
-<aside class="sidebar" id="sidebar">
-    <a class="brand" href="index.html" aria-label="StockSmart home">
-      <div class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
-      </div>
-      <div>
-        <div class="brand-text">Stock<span>Smart</span></div>
-        <div class="brand-sub">INVENTORY OS</div>
-      </div>
-    </a>
+<main class="main">
 
-    <div class="nav-scroll">
-      <p class="menu-title">MAIN</p>
-      <ul class="menu">
-        <li class="menu-item"><a class="left" href="dashboard.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-          Dashboard</a></li>
-        <li class="menu-item"><a class="left" href="products.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13V21"/></svg>
-          Products</a></li>
-        <li class="menu-item active"><a class="left" href="inventory.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M9 13h6"/></svg>
-          Inventory</a></li>
-        <li class="menu-item"><a class="left" href="checkout.php">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
-          Checkout</a></li>
-        <!--
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-          Suppliers</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M9 13h6"/></svg>
-          Sales</span></li>
-        -->
-      </ul>
-
-      <p class="menu-title">ALERTS</p>
-      <ul class="menu">
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-          Restocking Alerts</span><span class="badge amber" id="badgeRestock">0</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          Expiry Alerts</span><span class="badge red" id="badgeExpiry">0</span></li>
-      </ul>
-
-      <!--
-      <p class="menu-title">ADMIN</p>
-      <ul class="menu">
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
-          Reports</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          Users</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          Settings</span></li>
-      </ul>
-      -->
-    </div>
-
-    <div class="sidebar-bottom">
-      <!--
-      <div class="upgrade-card">
-        <div class="title">Go Pro</div>
-        <p>Unlock multi-warehouse sync and advanced forecasting.</p>
-        <a href="#" class="upgrade-btn">Upgrade plan</a>
-      </div>
-      -->
-      <div class="profile-mini">
-        <div class="avatar">AD</div>
-        <div>
-          <b>Admin User</b>
-          <p>Super Admin</p>
-        </div>
-        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-    </div>
-  </aside>
-
-<main class="main-content">
-
-    <header class="top-header">
-        <div>
-            <h1>Inventory</h1>
-            <p class="crumb">Dashboard <span class="dot"></span> Inventory <span class="dot"></span> <span id="liveClock"></span></p>
-        </div>
-
-        <form class="search-form" onsubmit="return false;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input
-                type="text"
-                id="searchInput"
-                placeholder="Search products, SKU..."
-                autocomplete="off"
-            >
-        </form>
-
-        <div class="header-actions">
-            <div class="notification" id="notifBtn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              <span class="notif-badge" id="notifBadge">0</span>
-            </div>
-            <div class="profile">
-                <div class="profile-circle">AD</div>
-                <div>
-                    <b>Admin User</b>
-                    <p>Super Admin</p>
-                </div>
-            </div>
-        </div>
-    </header>
+    <!--TOPBAR-->
 
     <section class="stats-grid" id="statsGrid"></section>
 
@@ -922,7 +655,7 @@ a{ color:inherit; text-decoration:none; }
                 <div class="filters">
                     <button class="active" data-filter="all">All Categories</button>
                     <button data-filter="locations">All Locations</button>
-                    <button data-filter="month">This Month</button>
+                    <button data-filter="restock">Needs Restock</button>
                 </div>
             </div>
 
@@ -1038,6 +771,85 @@ a{ color:inherit; text-decoration:none; }
     </section>
 
 </main>
+</div>
+
+<!-- UPDATE STOCK MODAL -->
+<div class="overlay" id="stockOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Update Stock</h3>
+      <button id="stockModalClose"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Product</label>
+        <select id="stockProduct"></select>
+      </div>
+      <div class="field">
+        <label>Warehouse</label>
+        <select id="stockWarehouse"></select>
+        <div class="hint" id="stockWarehouseHint"></div>
+      </div>
+      <div class="field">
+        <label>Action</label>
+        <div class="type-toggle">
+          <button type="button" class="active" data-type="in">Stock In</button>
+          <button type="button" data-type="out">Stock Out</button>
+          <button type="button" data-type="set">Set Exact Count</button>
+        </div>
+      </div>
+      <div class="field">
+        <label id="stockQtyLabel">Quantity to add</label>
+        <input type="number" id="stockQty" min="0" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Note (optional)</label>
+        <input type="text" id="stockNote" placeholder="e.g. Supplier delivery, damaged goods, recount...">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="stockCancelBtn">Cancel</button>
+      <button class="btn-primary" id="stockSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRANSFER STOCK MODAL -->
+<div class="overlay" id="transferOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Transfer Stock</h3>
+      <button id="transferModalClose"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Product</label>
+        <select id="transferProduct"></select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>From Warehouse</label>
+          <select id="transferFrom"></select>
+        </div>
+        <div class="field">
+          <label>To Warehouse</label>
+          <select id="transferTo"></select>
+        </div>
+      </div>
+      <div class="hint" id="transferHint"></div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="transferQty" min="1" placeholder="0">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="transferCancelBtn">Cancel</button>
+      <button class="btn-primary" id="transferSaveBtn">Transfer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
 
 <script>
 /* ============================================================
@@ -1051,7 +863,21 @@ a{ color:inherit; text-decoration:none; }
 
 const INVENTORY_API_URL = 'api/inventory.php';
 
-let SAMPLE_DATA = { stats: {}, products: [], activity: [] };
+// inventory.php (the page wrapper) injects window.STOCKSMART_USER, which
+// includes a `csrf` field — sent back via X-CSRF-Token on every POST.
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+
+let SAMPLE_DATA = { stats: {}, products: [], warehouses: [], activity: [], expiringSoonCount: 0 };
+
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 2600);
+}
 
 async function loadInventoryData(){
   const res = await fetch(INVENTORY_API_URL);
@@ -1077,7 +903,6 @@ function getStatus(p){
    ============================================================ */
 
 const fmtNum = n => Number(n).toLocaleString('en-IN');
-const fmtRs = n => 'Rs. ' + Number(n).toLocaleString('en-IN');
 
 function trendSvg(dir){
   if (dir === 'down') return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
@@ -1096,7 +921,7 @@ function renderStats(stats){
     { key:'outOfStock', label:'Out of Stock', color:'pink', currency:false,
       svg:'<circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/>' },
     { key:'totalValue', label:'Total Inventory Value', color:'purple', currency:true,
-      svg:'<path d="M7 4h10"/><path d="M7 8h10"/><path d="M7 4c5 0 8 2.4 8 5.6S12 14 7 14"/><path d="M7 14l8 7"/>' }
+      svg:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>' }
   ];
 
   const lineColors = { cyan:'#8b97ff', green:'#169e63', yellow:'#c9790f', pink:'#d8413f', purple:'#8454e8' };
@@ -1197,18 +1022,24 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
-/* ---- Search (client-side, replaces the PHP $_GET search) ---- */
-function initSearch(){
-  const input = document.getElementById('searchInput');
-  input.addEventListener('input', () => {
-    const q = input.value.trim().toLowerCase();
-    const filtered = q === ''
-      ? SAMPLE_DATA.products
-      : SAMPLE_DATA.products.filter(p =>
-          p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)
-        );
-    renderInventoryTable(filtered);
+/* ---- Combined search + category + location + restock filter ---- */
+const filterState = { category: null, location: null, restockOnly: false };
+
+function applyFilters(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = SAMPLE_DATA.products.filter(p => {
+    const matchesQ = q === '' || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
+    const matchesCategory = !filterState.category || p.category === filterState.category;
+    const matchesLocation = !filterState.location || p.location.includes(filterState.location);
+    const available = getAvailable(p);
+    const matchesRestock = !filterState.restockOnly || available <= p.reorderLevel;
+    return matchesQ && matchesCategory && matchesLocation && matchesRestock;
   });
+  renderInventoryTable(filtered);
+}
+
+function initSearch(){
+  document.getElementById('searchInput').addEventListener('input', applyFilters);
 }
 
 /* ---- Stock by category (donut + list) ---- */
@@ -1311,105 +1142,262 @@ function renderActivity(items){
   }).join('');
 }
 
-/* ---- Sidebar + header badges ---- */
-function renderBadges(products){
-  const lowStockCount = products.filter(p => {
-    const a = getAvailable(p);
-    return a > 0 && a <= p.reorderLevel;
-  }).length;
-  const outOfStockCount = products.filter(p => getAvailable(p) <= 0).length;
-  const restocking = lowStockCount + outOfStockCount;
-  const expiry = 16; // sample — wire to real expiry tracking later
+/* Sidebar/topbar badge counts, the notification bell, live clock, and
+   mobile sidebar toggle are now handled centrally by assets/js/nav-guard.js
+   (fillBadgeCounts/initNotifBell/initLiveClock/initSidebarToggle) reading
+   the same server-computed alert counts every page uses — this used to
+   recompute "restocking" client-side from the visible product list, which
+   could drift from the shared count. */
 
-  document.getElementById('badgeRestock').textContent = restocking;
-  document.getElementById('badgeExpiry').textContent = expiry;
-  document.getElementById('notifBadge').textContent = restocking + expiry;
-}
-
-/* ---- Live clock ---- */
-function updateClock(){
-  const now = new Date();
-  document.getElementById('liveClock').textContent = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-}
-
-/* ---- Mobile sidebar ---- */
-function initSidebarToggle(){
-  const sidebar = document.getElementById('sidebar');
-  const toggle = document.getElementById('sidebarToggle');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  function open(){ sidebar.classList.add('open'); backdrop.classList.add('show'); }
-  function close(){ sidebar.classList.remove('open'); backdrop.classList.remove('show'); }
-  toggle.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open());
-  backdrop.addEventListener('click', close);
-}
-
-/* ---- Quick actions + filters + notif bell (UI-only) ---- */
+/* ---- Quick actions: Add Product / Update Stock / Transfer Stock / Generate Report ---- */
 function initQuickActions(){
-  const labels = {
-    'add-product':     'Add Product',
-    'update-stock':    'Update Stock',
-    'transfer-stock':  'Transfer Stock',
-    'generate-report': 'Generate Report'
-  };
-  // Actions that map to a real page in the site navigate there;
-  // the rest still log to console as placeholders for a real handler.
   const destinations = {
-    'add-product': 'products.html'
+    'add-product': 'products.php'
   };
   document.querySelectorAll('.qa-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const label = labels[btn.dataset.action] || 'Action';
       btn.style.transform = 'scale(.96)';
       setTimeout(() => { btn.style.transform = ''; }, 140);
-      const dest = destinations[btn.dataset.action];
-      if (dest) {
-        window.location.href = dest;
-      } else {
-        console.log(`[StockSmart] "${label}" clicked — wire this up to your real handler.`);
+
+      const action = btn.dataset.action;
+      if (destinations[action]) {
+        window.location.href = destinations[action];
+      } else if (action === 'update-stock') {
+        openStockModal();
+      } else if (action === 'transfer-stock') {
+        openTransferModal();
+      } else if (action === 'generate-report') {
+        showToast('Reports module is coming in the next update — see the Reports section of the roadmap.');
       }
     });
   });
 }
 
+/* ---- Category / Location / Restock filter pills ---- */
 function initFilters(){
-  document.querySelectorAll('.filters button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      console.log(`[StockSmart] Filter "${btn.textContent}" clicked — wire this up to your real filtering logic.`);
-    });
-  });
-}
+  const buttons = Array.from(document.querySelectorAll('.filters button'));
+  const catBtn = buttons.find(b => b.dataset.filter === 'all');
+  const locBtn = buttons.find(b => b.dataset.filter === 'locations');
+  const restockBtn = buttons.find(b => b.dataset.filter === 'restock');
 
-function initNotifBell(){
-  document.getElementById('notifBtn').addEventListener('click', () => {
-    console.log('[StockSmart] Notifications clicked — hook up a dropdown/panel here.');
+  function categories(){ return [...new Set(SAMPLE_DATA.products.map(p => p.category))].sort(); }
+  function locations(){
+    const set = new Set();
+    SAMPLE_DATA.products.forEach(p => p.location.split(', ').forEach(l => set.add(l)));
+    return [...set].sort();
+  }
+
+  catBtn.addEventListener('click', () => {
+    const list = categories();
+    const idx = filterState.category ? list.indexOf(filterState.category) : -1;
+    filterState.category = idx + 1 < list.length ? list[idx + 1] : null;
+    catBtn.textContent = filterState.category || 'All Categories';
+    catBtn.classList.toggle('active', !!filterState.category);
+    applyFilters();
+  });
+
+  locBtn.addEventListener('click', () => {
+    const list = locations();
+    const idx = filterState.location ? list.indexOf(filterState.location) : -1;
+    filterState.location = idx + 1 < list.length ? list[idx + 1] : null;
+    locBtn.textContent = filterState.location || 'All Locations';
+    locBtn.classList.toggle('active', !!filterState.location);
+    applyFilters();
+  });
+
+  restockBtn.addEventListener('click', () => {
+    filterState.restockOnly = !filterState.restockOnly;
+    restockBtn.classList.toggle('active', filterState.restockOnly);
+    applyFilters();
   });
 }
 
 /* ============================================================
+   UPDATE STOCK MODAL
+   ============================================================ */
+let stockModalType = 'in';
+
+function populateProductSelect(selectEl){
+  selectEl.innerHTML = SAMPLE_DATA.products
+    .map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${escapeHtml(p.sku)})</option>`)
+    .join('');
+}
+
+function populateWarehouseSelect(selectEl){
+  selectEl.innerHTML = SAMPLE_DATA.warehouses
+    .map(w => `<option value="${w.id}">${escapeHtml(w.name)}</option>`)
+    .join('');
+}
+
+async function fetchProductWarehouseBreakdown(productId){
+  const res = await fetch(`${INVENTORY_API_URL}?action=product_inventory&id=${productId}`);
+  if (!res.ok) throw new Error('Could not load warehouse breakdown');
+  return res.json();
+}
+
+async function refreshStockWarehouseHint(){
+  const productId = Number(document.getElementById('stockProduct').value);
+  const warehouseId = Number(document.getElementById('stockWarehouse').value);
+  if (!productId || !warehouseId) return;
+  try {
+    const rows = await fetchProductWarehouseBreakdown(productId);
+    const row = rows.find(r => r.warehouseId === warehouseId);
+    const hint = document.getElementById('stockWarehouseHint');
+    hint.textContent = row ? `Currently ${row.onHand} on hand (${row.reserved} reserved, ${row.available} available) in this warehouse.` : '';
+  } catch (err) { console.error(err); }
+}
+
+function openStockModal(){
+  const productSelect = document.getElementById('stockProduct');
+  const warehouseSelect = document.getElementById('stockWarehouse');
+  populateProductSelect(productSelect);
+  populateWarehouseSelect(warehouseSelect);
+  document.getElementById('stockQty').value = '';
+  document.getElementById('stockNote').value = '';
+  setStockType('in');
+  refreshStockWarehouseHint();
+  document.getElementById('stockOverlay').classList.add('open');
+}
+
+function setStockType(type){
+  stockModalType = type;
+  document.querySelectorAll('#stockOverlay .type-toggle button').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+  const label = document.getElementById('stockQtyLabel');
+  label.textContent = type === 'in' ? 'Quantity to add' : (type === 'out' ? 'Quantity to remove' : 'New exact stock count');
+}
+
+document.getElementById('stockModalClose').addEventListener('click', () => document.getElementById('stockOverlay').classList.remove('open'));
+document.getElementById('stockCancelBtn').addEventListener('click', () => document.getElementById('stockOverlay').classList.remove('open'));
+document.getElementById('stockOverlay').addEventListener('click', e => { if (e.target.id === 'stockOverlay') e.currentTarget.classList.remove('open'); });
+document.querySelectorAll('#stockOverlay .type-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => setStockType(btn.dataset.type));
+});
+document.getElementById('stockProduct').addEventListener('change', refreshStockWarehouseHint);
+document.getElementById('stockWarehouse').addEventListener('change', refreshStockWarehouseHint);
+
+document.getElementById('stockSaveBtn').addEventListener('click', async () => {
+  const productId = Number(document.getElementById('stockProduct').value);
+  const warehouseId = Number(document.getElementById('stockWarehouse').value);
+  const quantity = Number(document.getElementById('stockQty').value);
+  const note = document.getElementById('stockNote').value.trim();
+
+  if (!productId || isNaN(quantity) || quantity < 0) {
+    showToast('Please enter a valid quantity.', true);
+    return;
+  }
+
+  const btn = document.getElementById('stockSaveBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${INVENTORY_API_URL}?action=stock_adjust`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ productId, warehouseId, type: stockModalType, quantity, note })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not update stock');
+    showToast('Stock updated');
+    document.getElementById('stockOverlay').classList.remove('open');
+    await refreshInventory();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ============================================================
+   TRANSFER STOCK MODAL
+   ============================================================ */
+async function refreshTransferHint(){
+  const productId = Number(document.getElementById('transferProduct').value);
+  const fromId = Number(document.getElementById('transferFrom').value);
+  if (!productId || !fromId) return;
+  try {
+    const rows = await fetchProductWarehouseBreakdown(productId);
+    const row = rows.find(r => r.warehouseId === fromId);
+    document.getElementById('transferHint').textContent = row
+      ? `${row.available} unit(s) available to transfer from this warehouse.`
+      : '';
+  } catch (err) { console.error(err); }
+}
+
+function openTransferModal(){
+  const productSelect = document.getElementById('transferProduct');
+  const fromSelect = document.getElementById('transferFrom');
+  const toSelect = document.getElementById('transferTo');
+  populateProductSelect(productSelect);
+  populateWarehouseSelect(fromSelect);
+  populateWarehouseSelect(toSelect);
+  if (toSelect.options.length > 1) toSelect.selectedIndex = 1;
+  document.getElementById('transferQty').value = '';
+  refreshTransferHint();
+  document.getElementById('transferOverlay').classList.add('open');
+}
+
+document.getElementById('transferModalClose').addEventListener('click', () => document.getElementById('transferOverlay').classList.remove('open'));
+document.getElementById('transferCancelBtn').addEventListener('click', () => document.getElementById('transferOverlay').classList.remove('open'));
+document.getElementById('transferOverlay').addEventListener('click', e => { if (e.target.id === 'transferOverlay') e.currentTarget.classList.remove('open'); });
+document.getElementById('transferProduct').addEventListener('change', refreshTransferHint);
+document.getElementById('transferFrom').addEventListener('change', refreshTransferHint);
+
+document.getElementById('transferSaveBtn').addEventListener('click', async () => {
+  const productId = Number(document.getElementById('transferProduct').value);
+  const fromWarehouseId = Number(document.getElementById('transferFrom').value);
+  const toWarehouseId = Number(document.getElementById('transferTo').value);
+  const quantity = Number(document.getElementById('transferQty').value);
+
+  if (!productId || !fromWarehouseId || !toWarehouseId || !quantity || quantity <= 0) {
+    showToast('Please fill in every field with a valid quantity.', true);
+    return;
+  }
+  if (fromWarehouseId === toWarehouseId) {
+    showToast('Source and destination warehouses must be different.', true);
+    return;
+  }
+
+  const btn = document.getElementById('transferSaveBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${INVENTORY_API_URL}?action=stock_transfer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ productId, fromWarehouseId, toWarehouseId, quantity })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not transfer stock');
+    showToast('Stock transferred');
+    document.getElementById('transferOverlay').classList.remove('open');
+    await refreshInventory();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ============================================================
    INIT
    ============================================================ */
-async function init(){
-  updateClock();
-  setInterval(updateClock, 1000);
+async function refreshInventory(){
+  await loadInventoryData();
+  renderStats(SAMPLE_DATA.stats);
+  applyFilters();
+  renderCategoryBreakdown(SAMPLE_DATA.products);
+  renderLocationBreakdown(SAMPLE_DATA.products);
+  renderActivity(SAMPLE_DATA.activity);
+}
 
+async function init(){
   initSearch();
-  initSidebarToggle();
   initQuickActions();
   initFilters();
-  initNotifBell();
 
   try {
-    await loadInventoryData();
-    renderStats(SAMPLE_DATA.stats);
-    renderInventoryTable(SAMPLE_DATA.products);
-    renderCategoryBreakdown(SAMPLE_DATA.products);
-    renderLocationBreakdown(SAMPLE_DATA.products);
-    renderActivity(SAMPLE_DATA.activity);
-    renderBadges(SAMPLE_DATA.products);
+    await refreshInventory();
   } catch (err) {
     console.error(err);
+    showToast('Could not load inventory from the server', true);
   }
 }
 

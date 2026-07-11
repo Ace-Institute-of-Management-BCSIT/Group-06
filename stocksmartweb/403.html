@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Access Denied — StockSmart</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --accent: #5b6ef5; --bg: #f5f6fb; --surface: #ffffff;
+      --text-900: #0f1226; --text-600: #50546b; --line: #e8e9f3;
+      --red: #d8413f; --red-bg: #fcecec;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; color: var(--text-900);
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 18px; box-shadow: 0 4px 16px rgba(15,18,38,.07);
+      padding: 44px 40px; max-width: 420px; text-align: center;
+    }
+    .icon { width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 50%; background: var(--red-bg); color: var(--red); display: grid; place-items: center; }
+    h1 { font-size: 22px; font-weight: 800; margin-bottom: 10px; }
+    p { color: var(--text-600); font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    .role-tag { display: inline-block; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-600); margin-bottom: 24px; }
+    a.btn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 11px 22px; border-radius: 10px; }
+    a.btn:hover { background: #4756e8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+    <h1>403 — Access Denied</h1>
+    <p>Your account does not have permission to view this page. If you believe this is a mistake, contact an administrator.</p>
+    <div class="role-tag" id="roleTag" style="display:none;"></div>
+    <br>
+    <a class="btn" href="dashboard.php">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Back to Dashboard
+    </a>
+  </div>
+  <script>
+    if (window.STOCKSMART_USER && window.STOCKSMART_USER.role) {
+      const el = document.getElementById('roleTag');
+      el.textContent = 'Signed in as ' + window.STOCKSMART_USER.role;
+      el.style.display = 'inline-block';
+    }
+  </script>
+</body>
+</html>

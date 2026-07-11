@@ -1,34 +1,15 @@
 <?php
-// Quick diagnostic — delete this file after testing
-require_once __DIR__ . '/db.php';
+/** Administrative database health check; never exposes user credentials. */
+declare(strict_types=1);
 
-header('Content-Type: application/json');
+require_once __DIR__ . '/api/_bootstrap.php';
 
-// Test 1: Can we query the users table?
+api_require_role(['Admin']);
+
 try {
-    $stmt = $pdo->prepare("SELECT user_id, full_name, username, email, password_hash, status FROM users WHERE username = 'annie.admin' LIMIT 1");
-    $stmt->execute();
-    $user = $stmt->fetch();
-    
-    if (!$user) {
-        echo json_encode(['step' => 'query', 'result' => 'NO USER FOUND - annie.admin does not exist in DB']);
-        exit;
-    }
-    
-    // Test 2: Does password_verify work?
-    $hash = $user['password_hash'];
-    $testPwd = 'Admin@123';
-    $verified = password_verify($testPwd, $hash);
-    
-    echo json_encode([
-        'step'       => 'all_ok',
-        'user_found' => true,
-        'username'   => $user['username'],
-        'status'     => $user['status'],
-        'hash_len'   => strlen($hash),
-        'hash_prefix'=> substr($hash, 0, 7),
-        'pwd_verify' => $verified,
-    ]);
+    $users = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    echo json_encode(['ok' => true, 'database' => 'connected', 'userCount' => $users]);
 } catch (Throwable $e) {
-    echo json_encode(['step' => 'error', 'message' => $e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => 'Database health check failed.']);
 }

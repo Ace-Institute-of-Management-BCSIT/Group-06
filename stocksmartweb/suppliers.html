@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Suppliers</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .sup-name{font-weight:700;font-size:13.5px;}
+  .sup-sub{font-size:11.5px;color:var(--text-400);margin-top:1px;}
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} .stats{grid-template-columns:repeat(2,1fr);} }
+</style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="stats">
+      <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total Suppliers</div></div>
+      <div class="stat-card"><div class="stat-value" id="statActive">0</div><div class="stat-label">Active</div></div>
+      <div class="stat-card"><div class="stat-value" id="statProducts">0</div><div class="stat-label">Products Supplied</div></div>
+      <div class="stat-card"><div class="stat-value" id="statPurchaseTotal">Rs. 0</div><div class="stat-label">Total Purchases</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="searchInput" placeholder="Search by supplier name, contact, or phone...">
+      </div>
+      <select class="pill" id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      <button class="btn-add" id="addSupplierBtn" data-perm="suppliers.manage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Supplier
+      </button>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr><th>Supplier</th><th>Contact</th><th>Products</th><th>Purchases</th><th>Status</th><th style="text-align:right;">Actions</th></tr>
+        </thead>
+        <tbody id="suppliersBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;">No suppliers match your filters.</div>
+    </div>
+  </main>
+</div>
+
+<!-- Supplier Modal -->
+<div class="overlay" id="supplierOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Add Supplier</h3>
+      <button id="closeModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Supplier Name</label><input type="text" id="fName"></div>
+      <div class="field-row">
+        <div class="field"><label>Contact Person</label><input type="text" id="fContact"></div>
+        <div class="field"><label>Phone</label><input type="text" id="fPhone"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Email</label><input type="email" id="fEmail"></div>
+        <div class="field"><label>Status</label>
+          <select id="fStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        </div>
+      </div>
+      <div class="field"><label>Address</label><textarea id="fAddress" rows="2"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="cancelModalBtn">Cancel</button>
+      <button class="btn-primary" id="saveSupplierBtn">Save Supplier</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
+
+<script>
+const API_URL = 'api/suppliers.php';
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+let allSuppliers = [];
+let editingId = null;
+
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+async function loadSuppliers(){
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load suppliers');
+    allSuppliers = data.suppliers;
+    render();
+  } catch (err) { showToast(err.message, true); }
+}
+
+function render(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const statusFilter = document.getElementById('statusFilter').value;
+
+  const filtered = allSuppliers.filter(s => {
+    if (statusFilter && s.status !== statusFilter) return false;
+    if (q && !((s.supplier_name || '').toLowerCase().includes(q) || (s.contact_person || '').toLowerCase().includes(q) || (s.phone || '').includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('statTotal').textContent = allSuppliers.length;
+  document.getElementById('statActive').textContent = allSuppliers.filter(s => s.status === 'active').length;
+  document.getElementById('statProducts').textContent = allSuppliers.reduce((sum, s) => sum + Number(s.product_count || 0), 0);
+  document.getElementById('statPurchaseTotal').textContent = fmtRs(allSuppliers.reduce((sum, s) => sum + Number(s.purchase_total || 0), 0));
+
+  const tbody = document.getElementById('suppliersBody');
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+
+  tbody.innerHTML = filtered.map(s => `
+    <tr>
+      <td><div class="sup-name">${escapeHtml(s.supplier_name)}</div><div class="sup-sub">${escapeHtml(s.address || 'No address on file')}</div></td>
+      <td>${escapeHtml(s.contact_person || '—')}<div class="sup-sub">${escapeHtml(s.phone || '')} ${s.email ? '· ' + escapeHtml(s.email) : ''}</div></td>
+      <td>${s.product_count || 0}</td>
+      <td>${s.purchase_count || 0} orders<div class="sup-sub">${fmtRs(s.purchase_total || 0)}</div></td>
+      <td><span class="status-pill status-${s.status}">${s.status.charAt(0).toUpperCase() + s.status.slice(1)}</span></td>
+      <td>
+        <div class="row-actions" style="justify-content:flex-end;" data-perm="suppliers.manage">
+          <button title="Edit" data-edit="${s.supplier_id}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+          </button>
+          ${s.status === 'active' ? `<button class="danger" title="Deactivate" data-deactivate="${s.supplier_id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('');
+
+  if (window.STOCKSMART_USER) {
+    document.querySelectorAll('[data-perm]').forEach(el => {
+      const perms = window.STOCKSMART_USER.permissions || [];
+      const req = el.getAttribute('data-perm').split(',').map(p => p.trim());
+      const allowed = perms.includes('*') || req.some(p => perms.includes(p));
+      el.style.display = allowed ? '' : 'none';
+    });
+  }
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('statusFilter').addEventListener('change', render);
+
+function openModal(supplier){
+  editingId = supplier ? supplier.supplier_id : null;
+  document.getElementById('modalTitle').textContent = supplier ? 'Edit Supplier' : 'Add Supplier';
+  document.getElementById('fName').value = supplier ? supplier.supplier_name : '';
+  document.getElementById('fContact').value = supplier ? (supplier.contact_person || '') : '';
+  document.getElementById('fPhone').value = supplier ? (supplier.phone || '') : '';
+  document.getElementById('fEmail').value = supplier ? (supplier.email || '') : '';
+  document.getElementById('fStatus').value = supplier ? supplier.status : 'active';
+  document.getElementById('fAddress').value = supplier ? (supplier.address || '') : '';
+  document.getElementById('supplierOverlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('supplierOverlay').classList.remove('open'); }
+
+document.getElementById('addSupplierBtn').addEventListener('click', () => openModal(null));
+document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+
+document.getElementById('suppliersBody').addEventListener('click', async e => {
+  const editBtn = e.target.closest('[data-edit]');
+  const deactivateBtn = e.target.closest('[data-deactivate]');
+
+  if (editBtn) {
+    const supplier = allSuppliers.find(s => s.supplier_id === parseInt(editBtn.dataset.edit, 10));
+    if (supplier) openModal(supplier);
+  }
+  if (deactivateBtn) {
+    if (!confirm('Deactivate this supplier?')) return;
+    try {
+      const res = await fetch(`${API_URL}?id=${deactivateBtn.dataset.deactivate}`, {
+        method: 'DELETE', headers: { 'X-CSRF-Token': CSRF_TOKEN },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not deactivate the supplier');
+      showToast('Supplier deactivated');
+      await loadSuppliers();
+    } catch (err) { showToast(err.message, true); }
+  }
+});
+
+document.getElementById('saveSupplierBtn').addEventListener('click', async () => {
+  const payload = {
+    supplier_name: document.getElementById('fName').value.trim(),
+    contact_person: document.getElementById('fContact').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
+    email: document.getElementById('fEmail').value.trim(),
+    status: document.getElementById('fStatus').value,
+    address: document.getElementById('fAddress').value.trim(),
+  };
+  if (!payload.supplier_name) { showToast('Supplier name is required', true); return; }
+
+  const btn = document.getElementById('saveSupplierBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(editingId ? `${API_URL}?id=${editingId}` : API_URL, {
+      method: editingId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save the supplier');
+    showToast(editingId ? 'Supplier updated' : 'Supplier created');
+    closeModal();
+    await loadSuppliers();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadSuppliers();
+</script>
+</body>
+</html>

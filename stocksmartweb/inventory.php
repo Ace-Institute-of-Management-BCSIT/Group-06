@@ -1,24 +1,24 @@
 <?php
 /**
  * ============================================================================
- *  StockSmart — Inventory (inventory.php)
+ *  StockSmart — Inventory (inventory.php) — ROOT FILE
  * ============================================================================
- *  Session-protected page wrapper. Validates the session before serving
- *  inventory.html. Unauthenticated requests redirect to login.html.
+ *  Goes in project ROOT (stocksmartweb/inventory.php). This is the PAGE
+ *  WRAPPER — checks the session, injects the user (with CSRF token), and
+ *  prints inventory.html. It contains NO SQL and NO api_require_login() call.
+ *  If you see those in this file, it has the wrong contents — that belongs
+ *  in the SEPARATE file api/inventory.php instead.
  * ============================================================================
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/page_renderer.php';
 
-$user     = auth_user();
-$userJson = json_encode($user, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
-?>
-<!DOCTYPE html>
-<script>window.STOCKSMART_USER = <?= $userJson ?>;</script>
-<?php
-$html = file_get_contents(__DIR__ . '/inventory.html');
-$html = preg_replace('/^<!DOCTYPE[^>]*>\s*/i', '', $html);
-$html = preg_replace('/^<html[^>]*>\s*/i', '', $html);
-echo $html;
+auth_require_permission('inventory.view');
+
+render_ui_template('inventory.html', auth_user(), 'inventory', 'Inventory', [
+    'id' => 'searchInput',
+    'placeholder' => 'Search products, SKU...',
+]);

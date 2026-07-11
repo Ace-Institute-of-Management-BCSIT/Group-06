@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Purchases</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .po-num{font-weight:700;font-size:13.5px;}
+  .po-sub{font-size:11.5px;color:var(--text-400);margin-top:1px;}
+  .items-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .items-table th{text-align:left;font-weight:600;color:var(--text-400);padding:6px 6px;border-bottom:1px solid var(--border);}
+  .items-table td{padding:6px 6px;vertical-align:middle;}
+  .items-table input, .items-table select{width:100%;padding:6px 8px;border-radius:7px;border:1px solid var(--border);font-size:12.5px;}
+  .items-table .rm-btn{background:none;border:none;color:var(--red);cursor:pointer;padding:4px;}
+  .add-line-btn{ align-self:flex-start; padding:7px 12px; border-radius:8px; border:1px dashed var(--border); background:none; color:var(--blue-accent); font-weight:600; font-size:12.5px; cursor:pointer; }
+  .totals-box{ display:flex; justify-content:flex-end; gap:24px; padding-top:10px; border-top:1px solid var(--border); font-size:13px; }
+  .totals-box b{font-size:15px;}
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} .stats{grid-template-columns:repeat(2,1fr);} }
+</style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="stats">
+      <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total Orders</div></div>
+      <div class="stat-card"><div class="stat-value" id="statPending">0</div><div class="stat-label">Awaiting Receipt</div></div>
+      <div class="stat-card"><div class="stat-value" id="statReceived">0</div><div class="stat-label">Fully Received</div></div>
+      <div class="stat-card"><div class="stat-value" id="statSpend">Rs. 0</div><div class="stat-label">Total Spend</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="searchInput" placeholder="Search by PO number or supplier...">
+      </div>
+      <select class="pill" id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="draft">Draft</option>
+        <option value="ordered">Ordered</option>
+        <option value="partial">Partially Received</option>
+        <option value="received">Received</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <button class="btn-add" id="addPoBtn" data-perm="purchases.manage">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Purchase Order
+      </button>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr><th>PO Number</th><th>Supplier</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th><th style="text-align:right;">Actions</th></tr>
+        </thead>
+        <tbody id="poBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;">No purchase orders match your filters.</div>
+    </div>
+  </main>
+</div>
+
+<!-- Create PO Modal -->
+<div class="overlay" id="poOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>New Purchase Order</h3><button id="closePoModalBtn">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Supplier</label><select id="fSupplier"></select></div>
+        <div class="field"><label>Warehouse</label><select id="fWarehouse"></select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Due Date</label><input type="date" id="fDueDate"></div>
+        <div class="field"><label>Notes</label><input type="text" id="fNotes" placeholder="Optional"></div>
+      </div>
+      <div class="field">
+        <label>Line Items</label>
+        <table class="items-table">
+          <thead><tr><th style="width:38%;">Product</th><th style="width:16%;">Qty</th><th style="width:20%;">Unit Cost</th><th style="width:14%;">Tax %</th><th style="width:8%;"></th></tr></thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+        <button type="button" class="add-line-btn" id="addLineBtn" style="margin-top:8px;">+ Add line item</button>
+      </div>
+      <div class="totals-box">
+        <div>Subtotal: <b id="calcSubtotal">Rs. 0</b></div>
+        <div>Tax: <b id="calcTax">Rs. 0</b></div>
+        <div>Total: <b id="calcGrand">Rs. 0</b></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="saveDraftBtn">Save as Draft</button>
+      <button class="btn-primary" id="placeOrderBtn">Place Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- Receive Modal -->
+<div class="overlay" id="receiveOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3 id="receiveTitle">Receive Stock</h3><button id="closeReceiveModalBtn">&times;</button></div>
+    <div class="modal-body">
+      <table class="items-table">
+        <thead><tr><th>Product</th><th>Ordered</th><th>Received</th><th>Receive Now</th></tr></thead>
+        <tbody id="receiveBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="cancelReceiveBtn">Cancel</button>
+      <button class="btn-primary" id="confirmReceiveBtn">Confirm Receipt</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
+
+<script>
+const API_URL = 'api/purchases.php';
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+let allPOs = [], suppliers = [], warehouses = [], products = [];
+let receivingPoId = null;
+
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+async function loadReferenceData(){
+  try {
+    const [supRes, invRes, prodRes] = await Promise.all([
+      fetch('api/suppliers.php'), fetch('api/inventory.php'), fetch('api/products.php'),
+    ]);
+    const supData = await supRes.json();
+    const invData = await invRes.json();
+    products = await prodRes.json();
+    suppliers = (supData.suppliers || []).filter(s => s.status === 'active');
+    warehouses = invData.warehouses || [];
+
+    document.getElementById('fSupplier').innerHTML = suppliers.map(s => `<option value="${s.supplier_id}">${escapeHtml(s.supplier_name)}</option>`).join('');
+    document.getElementById('fWarehouse').innerHTML = warehouses.map(w => `<option value="${w.id}">${escapeHtml(w.name)}</option>`).join('');
+  } catch (err) { showToast('Could not load reference data', true); }
+}
+
+async function loadPOs(){
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load purchase orders');
+    allPOs = data.purchase_orders;
+    render();
+  } catch (err) { showToast(err.message, true); }
+}
+
+function render(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const statusFilter = document.getElementById('statusFilter').value;
+  const filtered = allPOs.filter(po => {
+    if (statusFilter && po.status !== statusFilter) return false;
+    if (q && !(po.po_number.toLowerCase().includes(q) || po.supplier_name.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('statTotal').textContent = allPOs.length;
+  document.getElementById('statPending').textContent = allPOs.filter(p => ['ordered', 'partial'].includes(p.status)).length;
+  document.getElementById('statReceived').textContent = allPOs.filter(p => p.status === 'received').length;
+  document.getElementById('statSpend').textContent = fmtRs(allPOs.filter(p => p.status !== 'cancelled').reduce((s, p) => s + Number(p.grand_total || 0), 0));
+
+  const tbody = document.getElementById('poBody');
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+
+  tbody.innerHTML = filtered.map(po => `
+    <tr>
+      <td><div class="po-num">${escapeHtml(po.po_number)}</div></td>
+      <td>${escapeHtml(po.supplier_name)}</td>
+      <td>${po.item_count}</td>
+      <td>${fmtRs(po.grand_total)}</td>
+      <td><span class="status-pill status-${po.status}">${po.status}</span></td>
+      <td>${new Date(po.created_at.replace(' ', 'T')).toLocaleDateString()}</td>
+      <td>
+        <div class="row-actions">
+          <button data-view="${po.purchase_order_id}">View</button>
+          ${['ordered', 'partial'].includes(po.status) ? `<button data-receive="${po.purchase_order_id}" data-perm="purchases.manage">Receive</button>` : ''}
+          ${['draft', 'ordered'].includes(po.status) ? `<button class="danger" data-cancel="${po.purchase_order_id}" data-perm="purchases.manage">Cancel</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('');
+
+  applyPermGuards();
+}
+
+function applyPermGuards(){
+  if (!window.STOCKSMART_USER) return;
+  const perms = window.STOCKSMART_USER.permissions || [];
+  document.querySelectorAll('[data-perm]').forEach(el => {
+    const req = el.getAttribute('data-perm').split(',').map(p => p.trim());
+    el.style.display = (perms.includes('*') || req.some(p => perms.includes(p))) ? '' : 'none';
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('statusFilter').addEventListener('change', render);
+
+/* ---- Create PO modal ---- */
+function addLineRow(){
+  const row = document.createElement('tr');
+  row.innerHTML = `
+    <td><select class="line-product">${products.map(p => `<option value="${p.id}" data-cost="${p.price}">${escapeHtml(p.name)} (${escapeHtml(p.sku)})</option>`).join('')}</select></td>
+    <td><input type="number" class="line-qty" min="1" step="1" value="1"></td>
+    <td><input type="number" class="line-cost" min="0" step="0.01" value="0"></td>
+    <td><input type="number" class="line-tax" min="0" step="0.01" value="0"></td>
+    <td><button type="button" class="rm-btn" title="Remove">&times;</button></td>`;
+  document.getElementById('itemsBody').appendChild(row);
+  row.querySelectorAll('input').forEach(el => el.addEventListener('input', recalcTotals));
+  row.querySelector('.rm-btn').addEventListener('click', () => { row.remove(); recalcTotals(); });
+  recalcTotals();
+}
+document.getElementById('addLineBtn').addEventListener('click', addLineRow);
+
+function recalcTotals(){
+  let subtotal = 0, tax = 0;
+  document.querySelectorAll('#itemsBody tr').forEach(row => {
+    const qty = parseFloat(row.querySelector('.line-qty').value) || 0;
+    const cost = parseFloat(row.querySelector('.line-cost').value) || 0;
+    const taxRate = parseFloat(row.querySelector('.line-tax').value) || 0;
+    const lineTotal = qty * cost;
+    subtotal += lineTotal;
+    tax += lineTotal * (taxRate / 100);
+  });
+  document.getElementById('calcSubtotal').textContent = fmtRs(subtotal);
+  document.getElementById('calcTax').textContent = fmtRs(tax);
+  document.getElementById('calcGrand').textContent = fmtRs(subtotal + tax);
+}
+
+function openPoModal(){
+  document.getElementById('itemsBody').innerHTML = '';
+  document.getElementById('fDueDate').value = '';
+  document.getElementById('fNotes').value = '';
+  addLineRow();
+  document.getElementById('poOverlay').classList.add('open');
+}
+document.getElementById('addPoBtn').addEventListener('click', openPoModal);
+document.getElementById('closePoModalBtn').addEventListener('click', () => document.getElementById('poOverlay').classList.remove('open'));
+
+function collectPoPayload(placeOrder){
+  const items = Array.from(document.querySelectorAll('#itemsBody tr')).map(row => ({
+    product_id: parseInt(row.querySelector('.line-product').value, 10),
+    ordered_quantity: parseFloat(row.querySelector('.line-qty').value) || 0,
+    unit_cost: parseFloat(row.querySelector('.line-cost').value) || 0,
+    tax_rate: parseFloat(row.querySelector('.line-tax').value) || 0,
+  })).filter(i => i.ordered_quantity > 0);
+
+  return {
+    supplier_id: parseInt(document.getElementById('fSupplier').value, 10),
+    warehouse_id: parseInt(document.getElementById('fWarehouse').value, 10),
+    due_date: document.getElementById('fDueDate').value,
+    notes: document.getElementById('fNotes').value.trim(),
+    place_order: placeOrder,
+    items,
+  };
+}
+
+async function submitPo(placeOrder){
+  const payload = collectPoPayload(placeOrder);
+  if (!payload.items.length) { showToast('Add at least one line item', true); return; }
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create the purchase order');
+    showToast(`${data.po_number} ${placeOrder ? 'placed' : 'saved as draft'}`);
+    document.getElementById('poOverlay').classList.remove('open');
+    await loadPOs();
+  } catch (err) { showToast(err.message, true); }
+}
+document.getElementById('saveDraftBtn').addEventListener('click', () => submitPo(false));
+document.getElementById('placeOrderBtn').addEventListener('click', () => submitPo(true));
+
+/* ---- View / Receive / Cancel ---- */
+document.getElementById('poBody').addEventListener('click', async e => {
+  const viewBtn = e.target.closest('[data-view]');
+  const receiveBtn = e.target.closest('[data-receive]');
+  const cancelBtn = e.target.closest('[data-cancel]');
+
+  if (viewBtn || receiveBtn) {
+    const id = (viewBtn || receiveBtn).dataset.view || (viewBtn || receiveBtn).dataset.receive;
+    await openReceiveModal(id, !!receiveBtn);
+  }
+  if (cancelBtn) {
+    if (!confirm('Cancel this purchase order?')) return;
+    try {
+      const res = await fetch(`${API_URL}?action=cancel&id=${cancelBtn.dataset.cancel}`, { method: 'POST', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not cancel the purchase order');
+      showToast('Purchase order cancelled');
+      await loadPOs();
+    } catch (err) { showToast(err.message, true); }
+  }
+});
+
+async function openReceiveModal(id, canReceive){
+  receivingPoId = id;
+  document.getElementById('receiveBody').innerHTML = '<tr><td colspan="4" style="color:var(--text-400);">Loading…</td></tr>';
+  document.getElementById('receiveOverlay').classList.add('open');
+  document.getElementById('confirmReceiveBtn').style.display = canReceive ? '' : 'none';
+  try {
+    const res = await fetch(`${API_URL}?action=detail&id=${id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load purchase order');
+    const po = data.purchase_order;
+    document.getElementById('receiveTitle').textContent = (canReceive ? 'Receive Stock — ' : 'View — ') + po.po_number;
+    document.getElementById('receiveBody').innerHTML = po.items.map(it => {
+      const remaining = Number(it.ordered_quantity) - Number(it.received_quantity);
+      return `
+        <tr data-item-id="${it.purchase_order_item_id}">
+          <td>${escapeHtml(it.product_name)} <span style="color:var(--text-400);">(${escapeHtml(it.sku)})</span></td>
+          <td>${it.ordered_quantity}</td>
+          <td>${it.received_quantity}</td>
+          <td>${canReceive && remaining > 0 ? `<input type="number" class="recv-qty" min="0" max="${remaining}" step="1" value="${remaining}">` : (remaining > 0 ? 'Pending' : 'Complete')}</td>
+        </tr>`;
+    }).join('');
+  } catch (err) {
+    document.getElementById('receiveBody').innerHTML = `<tr><td colspan="4" style="color:var(--red);">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+document.getElementById('closeReceiveModalBtn').addEventListener('click', () => document.getElementById('receiveOverlay').classList.remove('open'));
+document.getElementById('cancelReceiveBtn').addEventListener('click', () => document.getElementById('receiveOverlay').classList.remove('open'));
+
+document.getElementById('confirmReceiveBtn').addEventListener('click', async () => {
+  const items = Array.from(document.querySelectorAll('#receiveBody tr[data-item-id]')).map(row => {
+    const input = row.querySelector('.recv-qty');
+    return input ? { item_id: parseInt(row.dataset.itemId, 10), receive_qty: parseFloat(input.value) || 0 } : null;
+  }).filter(x => x && x.receive_qty > 0);
+
+  if (!items.length) { showToast('Enter a quantity to receive', true); return; }
+
+  try {
+    const res = await fetch(`${API_URL}?action=receive&id=${receivingPoId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ items }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not receive stock');
+    showToast('Stock received (' + data.status + ')');
+    document.getElementById('receiveOverlay').classList.remove('open');
+    await loadPOs();
+  } catch (err) { showToast(err.message, true); }
+});
+
+(async function init(){
+  await loadReferenceData();
+  await loadPOs();
+})();
+</script>
+</body>
+</html>

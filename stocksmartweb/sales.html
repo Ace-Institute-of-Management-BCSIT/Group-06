@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Sales</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .ord-num{font-weight:700;font-size:13.5px;}
+  .ord-sub{font-size:11.5px;color:var(--text-400);margin-top:1px;}
+  .invoice-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;color:var(--text-600);}
+  .invoice-meta b{color:var(--text-900);}
+  .items-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .items-table th{text-align:left;font-weight:600;color:var(--text-400);padding:6px 6px;border-bottom:1px solid var(--border);}
+  .items-table td{padding:7px 6px;vertical-align:middle;border-bottom:1px solid var(--border);}
+  .items-table input[type=number]{width:70px;padding:5px 7px;border-radius:6px;border:1px solid var(--border);font-size:12.5px;}
+  .items-table input[type=checkbox]{width:16px;height:16px;}
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} .stats{grid-template-columns:repeat(2,1fr);} }
+</style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="stats">
+      <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total Sales</div></div>
+      <div class="stat-card"><div class="stat-value" id="statRevenue">Rs. 0</div><div class="stat-label">Revenue (Completed)</div></div>
+      <div class="stat-card"><div class="stat-value" id="statRefunded">0</div><div class="stat-label">Refunded / Returned</div></div>
+      <div class="stat-card"><div class="stat-value" id="statVoided">0</div><div class="stat-label">Voided</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="searchInput" placeholder="Search by invoice # or customer...">
+      </div>
+      <select class="pill" id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="completed">Completed</option>
+        <option value="pending">Pending</option>
+        <option value="partially_refunded">Partially Refunded</option>
+        <option value="refunded">Refunded</option>
+        <option value="cancelled">Cancelled/Void</option>
+      </select>
+      <input class="pill" type="date" id="fromFilter">
+      <input class="pill" type="date" id="toFilter">
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr><th>Invoice</th><th>Customer</th><th>Cashier</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th><th style="text-align:right;">Actions</th></tr>
+        </thead>
+        <tbody id="salesBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;">No sales match your filters.</div>
+    </div>
+  </main>
+</div>
+
+<!-- Invoice / Return Modal -->
+<div class="overlay" id="invoiceOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3 id="invoiceTitle">Invoice</h3><button id="closeInvoiceBtn">&times;</button></div>
+    <div class="modal-body">
+      <div class="invoice-meta">
+        <div>Customer: <b id="mCustomer">—</b></div>
+        <div>Cashier: <b id="mCashier">—</b></div>
+        <div>Date: <b id="mDate">—</b></div>
+        <div>Status: <b id="mStatus">—</b></div>
+      </div>
+      <table class="items-table">
+        <thead><tr><th></th><th>Item</th><th>Qty</th><th>Returned</th><th>Unit Price</th><th>Return Qty</th></tr></thead>
+        <tbody id="invoiceItemsBody"></tbody>
+      </table>
+      <div class="field"><label style="font-size:12.5px;font-weight:600;color:var(--text-600);">Reason (optional)</label><input type="text" id="returnReason" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);font-size:13px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="closeInvoiceBtn2">Close</button>
+      <button class="btn-secondary" id="printInvoiceBtn">Print</button>
+      <button class="btn-secondary" id="pdfInvoiceBtn">Download PDF</button>
+      <button class="btn-danger" id="voidBtn" data-perm="sales.manage">Void Sale</button>
+      <button class="btn-primary" id="processReturnBtn" data-perm="sales.manage">Process Return</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
+
+<script>
+const API_URL = 'api/sales.php';
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+let allOrders = [];
+let currentOrderId = null;
+
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+function applyPermGuards(){
+  if (!window.STOCKSMART_USER) return;
+  const perms = window.STOCKSMART_USER.permissions || [];
+  document.querySelectorAll('[data-perm]').forEach(el => {
+    const req = el.getAttribute('data-perm').split(',').map(p => p.trim());
+    el.style.display = (perms.includes('*') || req.some(p => perms.includes(p))) ? '' : 'none';
+  });
+}
+
+async function loadOrders(){
+  const params = new URLSearchParams();
+  const status = document.getElementById('statusFilter').value;
+  const from = document.getElementById('fromFilter').value;
+  const to = document.getElementById('toFilter').value;
+  const q = document.getElementById('searchInput').value.trim();
+  if (status) params.set('status', status);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (q) params.set('q', q);
+
+  try {
+    const res = await fetch(`${API_URL}?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load sales');
+    allOrders = data.orders;
+    render();
+  } catch (err) { showToast(err.message, true); }
+}
+
+function render(){
+  document.getElementById('statTotal').textContent = allOrders.length;
+  document.getElementById('statRevenue').textContent = fmtRs(allOrders.filter(o => o.order_status === 'completed').reduce((s, o) => s + Number(o.grand_total), 0));
+  document.getElementById('statRefunded').textContent = allOrders.filter(o => ['refunded', 'partially_refunded'].includes(o.order_status)).length;
+  document.getElementById('statVoided').textContent = allOrders.filter(o => o.order_status === 'cancelled').length;
+
+  const tbody = document.getElementById('salesBody');
+  document.getElementById('emptyState').style.display = allOrders.length ? 'none' : 'block';
+
+  tbody.innerHTML = allOrders.map(o => `
+    <tr>
+      <td><div class="ord-num">${escapeHtml(o.order_number)}</div></td>
+      <td>${escapeHtml(o.customer_name || 'Walk-in')}</td>
+      <td>${escapeHtml(o.cashier_name)}</td>
+      <td>${o.item_count}</td>
+      <td>${fmtRs(o.grand_total)}</td>
+      <td><span class="status-pill status-${o.order_status}">${o.order_status.replace('_', ' ')}</span></td>
+      <td>${new Date(o.order_date.replace(' ', 'T')).toLocaleString()}</td>
+      <td><div class="row-actions"><button data-view="${o.order_id}">View</button></div></td>
+    </tr>`).join('');
+
+  applyPermGuards();
+}
+
+['statusFilter', 'fromFilter', 'toFilter'].forEach(id => document.getElementById(id).addEventListener('change', loadOrders));
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(window._q); window._q = setTimeout(loadOrders, 300); });
+
+document.getElementById('salesBody').addEventListener('click', e => {
+  const viewBtn = e.target.closest('[data-view]');
+  if (viewBtn) openInvoice(viewBtn.dataset.view);
+});
+
+async function openInvoice(id){
+  currentOrderId = id;
+  document.getElementById('invoiceItemsBody').innerHTML = '<tr><td colspan="6" style="color:var(--text-400);">Loading…</td></tr>';
+  document.getElementById('invoiceOverlay').classList.add('open');
+  try {
+    const res = await fetch(`${API_URL}?action=detail&id=${id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load order');
+    const o = data.order;
+    document.getElementById('invoiceTitle').textContent = 'Invoice — ' + o.order_number;
+    document.getElementById('mCustomer').textContent = o.customer_name || 'Walk-in';
+    document.getElementById('mCashier').textContent = o.cashier_name;
+    document.getElementById('mDate').textContent = new Date(o.order_date.replace(' ', 'T')).toLocaleString();
+    document.getElementById('mStatus').textContent = o.order_status.replace('_', ' ');
+    document.getElementById('returnReason').value = '';
+
+    const canAct = ['completed', 'partially_refunded'].includes(o.order_status);
+    document.getElementById('voidBtn').style.display = o.order_status === 'completed' ? '' : 'none';
+    document.getElementById('processReturnBtn').style.display = canAct ? '' : 'none';
+
+    document.getElementById('invoiceItemsBody').innerHTML = o.items.map(it => {
+      const remaining = Number(it.quantity) - Number(it.returned_quantity);
+      return `
+        <tr data-order-item-id="${it.order_item_id}">
+          <td></td>
+          <td>${escapeHtml(it.product_name)} <span style="color:var(--text-400);">(${escapeHtml(it.sku)})</span></td>
+          <td>${it.quantity}</td>
+          <td>${it.returned_quantity}</td>
+          <td>${fmtRs(it.unit_price)}</td>
+          <td>${canAct && remaining > 0 ? `<input type="number" class="return-qty" min="0" max="${remaining}" step="1" value="0">` : '—'}</td>
+        </tr>`;
+    }).join('');
+    applyPermGuards();
+  } catch (err) {
+    document.getElementById('invoiceItemsBody').innerHTML = `<tr><td colspan="6" style="color:var(--red);">${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+document.getElementById('closeInvoiceBtn').addEventListener('click', () => document.getElementById('invoiceOverlay').classList.remove('open'));
+document.getElementById('closeInvoiceBtn2').addEventListener('click', () => document.getElementById('invoiceOverlay').classList.remove('open'));
+document.getElementById('printInvoiceBtn').addEventListener('click', () => {
+  window.open(`api/receipt.php?order_id=${currentOrderId}&format=html`, '_blank');
+});
+document.getElementById('pdfInvoiceBtn').addEventListener('click', () => {
+  window.location.href = `api/receipt.php?order_id=${currentOrderId}&format=pdf`;
+});
+
+document.getElementById('processReturnBtn').addEventListener('click', async () => {
+  const items = Array.from(document.querySelectorAll('#invoiceItemsBody tr[data-order-item-id]')).map(row => {
+    const input = row.querySelector('.return-qty');
+    return input ? { order_item_id: parseInt(row.dataset.orderItemId, 10), quantity: parseFloat(input.value) || 0 } : null;
+  }).filter(x => x && x.quantity > 0);
+
+  if (!items.length) { showToast('Enter a quantity to return', true); return; }
+
+  try {
+    const res = await fetch(`${API_URL}?action=return&id=${currentOrderId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ items, reason: document.getElementById('returnReason').value.trim() }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not process the return');
+    showToast(`Return processed — ${fmtRs(data.refund_amount)} refunded`);
+    document.getElementById('invoiceOverlay').classList.remove('open');
+    await loadOrders();
+  } catch (err) { showToast(err.message, true); }
+});
+
+document.getElementById('voidBtn').addEventListener('click', async () => {
+  if (!confirm('Void this entire sale? All items will be returned to stock.')) return;
+  try {
+    const res = await fetch(`${API_URL}?action=void&id=${currentOrderId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ reason: document.getElementById('returnReason').value.trim() || 'Voided by staff' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not void the sale');
+    showToast('Sale voided');
+    document.getElementById('invoiceOverlay').classList.remove('open');
+    await loadOrders();
+  } catch (err) { showToast(err.message, true); }
+});
+
+loadOrders();
+</script>
+</body>
+</html>

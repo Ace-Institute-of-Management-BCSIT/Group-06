@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Activity Logs</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .type-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:20px;text-transform:capitalize;}
+  .tag-add{background:var(--green-bg);color:var(--green);}
+  .tag-update{background:var(--accent-dim);color:var(--blue-accent);}
+  .tag-delete{background:var(--red-bg);color:var(--red);}
+  .tag-checkout{background:var(--purple-bg);color:var(--purple);}
+  .tag-alert{background:var(--amber-bg);color:var(--amber);}
+  .tag-transfer{background:var(--purple-bg);color:var(--purple);}
+  .tag-login{background:var(--green-bg);color:var(--green);}
+  .tag-logout{background:var(--red-bg);color:var(--red);}
+  .tag-security{background:var(--amber-bg);color:var(--amber);}
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} }
+</style>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="searchInput" placeholder="Search descriptions...">
+      </div>
+      <select class="pill" id="typeFilter">
+        <option value="">All Types</option>
+        <option value="login">Login</option>
+        <option value="logout">Logout</option>
+        <option value="add">Add</option>
+        <option value="update">Update</option>
+        <option value="delete">Delete</option>
+        <option value="checkout">Checkout</option>
+        <option value="transfer">Transfer</option>
+        <option value="alert">Alert</option>
+        <option value="security">Security</option>
+      </select>
+      <select class="pill" id="userFilter"><option value="">All Users</option></select>
+      <input class="pill" type="date" id="fromFilter">
+      <input class="pill" type="date" id="toFilter">
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Type</th><th>Description</th><th>User</th><th>IP</th><th>Date</th></tr></thead>
+        <tbody id="logsBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;">No log entries match your filters.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+async function loadLogs(){
+  const params = new URLSearchParams();
+  const type = document.getElementById('typeFilter').value;
+  const userId = document.getElementById('userFilter').value;
+  const from = document.getElementById('fromFilter').value;
+  const to = document.getElementById('toFilter').value;
+  const q = document.getElementById('searchInput').value.trim();
+  if (type) params.set('type', type);
+  if (userId) params.set('user_id', userId);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (q) params.set('q', q);
+
+  try {
+    const res = await fetch(`api/logs.php?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load logs');
+
+    if (document.getElementById('userFilter').options.length <= 1) {
+      document.getElementById('userFilter').innerHTML = '<option value="">All Users</option>' +
+        data.users.map(u => `<option value="${u.user_id}">${escapeHtml(u.full_name)}</option>`).join('');
+    }
+
+    const tbody = document.getElementById('logsBody');
+    document.getElementById('emptyState').style.display = data.logs.length ? 'none' : 'block';
+    tbody.innerHTML = data.logs.map(l => `
+      <tr>
+        <td><span class="type-tag tag-${l.activity_type}">${l.activity_type}</span></td>
+        <td>${escapeHtml(l.description)}</td>
+        <td>${escapeHtml(l.user_name || 'System')}</td>
+        <td style="color:var(--text-400);">${escapeHtml(l.ip_address || '—')}</td>
+        <td>${new Date(l.created_at.replace(' ', 'T')).toLocaleString()}</td>
+      </tr>`).join('');
+  } catch (err) {
+    document.getElementById('emptyState').textContent = err.message;
+    document.getElementById('emptyState').style.display = 'block';
+  }
+}
+
+['typeFilter', 'userFilter', 'fromFilter', 'toFilter'].forEach(id => document.getElementById(id).addEventListener('change', loadLogs));
+document.getElementById('searchInput').addEventListener('input', () => { clearTimeout(window._q); window._q = setTimeout(loadLogs, 300); });
+
+loadLogs();
+</script>
+</body>
+</html>

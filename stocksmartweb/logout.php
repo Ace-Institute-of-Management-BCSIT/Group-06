@@ -3,7 +3,7 @@
  * ============================================================================
  *  StockSmart — Logout (logout.php)
  * ============================================================================
- *  GET  logout.php   — destroys the session, redirects to login.html
+ *  GET  logout.php   — destroys the session, redirects to login.php
  *  POST logout.php   — same, but returns JSON { "ok": true }
  *                      (for any future fetch()-based logout button)
  *
@@ -23,15 +23,20 @@ if (!empty($_SESSION['user_id'])) {
     try {
         $pdo->prepare(
             "INSERT INTO activity_logs (user_id, activity_type, entity_type, entity_id, description)
-             VALUES (:uid, 'logout', 'users', :uid, :desc)"
+             VALUES (:uid, 'logout', 'users', :eid, :desc)"
         )->execute([
             ':uid'  => (int) $_SESSION['user_id'],
+            ':eid'  => (int) $_SESSION['user_id'],
             ':desc' => ($_SESSION['user_name'] ?? 'Unknown') . ' logged out',
         ]);
     } catch (Throwable $e) {
         // Non-fatal — don't block logout if the log INSERT fails
     }
 }
+
+try {
+    $pdo->prepare('DELETE FROM user_sessions WHERE session_id = :sid')->execute([':sid' => session_id()]);
+} catch (Throwable $e) { /* session-audit migration may not yet be installed */ }
 
 // 1. Clear the session data array
 $_SESSION = [];
@@ -56,9 +61,9 @@ session_destroy();
 // Respond
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => true, 'redirect' => 'login.html']);
+    echo json_encode(['ok' => true, 'redirect' => 'login.php']);
     exit;
 }
 
-header('Location: login.html');
+header('Location: login.php');
 exit;

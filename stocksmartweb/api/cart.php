@@ -29,22 +29,63 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../cart_helper.php';
-require_once __DIR__ . '/../auth.php';   // returns 401 JSON if not logged in
 
-header('Content-Type: application/json; charset=utf-8');
+api_require_permission('checkout.use');
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    cart_init($pdo);
+    $items = cart_get_items($pdo);
+    $customer = null;
+    $customerId = cart_get_customer_id();
+    if ($customerId) {
+        $stmt = $pdo->prepare('SELECT customer_id, customer_name, phone, email, loyalty_points FROM customers WHERE customer_id = :id');
+        $stmt->execute([':id' => $customerId]);
+        $customer = $stmt->fetch() ?: null;
+    }
+    echo json_encode(['items' => $items, 'customer' => $customer]);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed. Use POST.']);
+    echo json_encode(['error' => 'Method not allowed. Use GET or POST.']);
     exit;
 }
+
+api_verify_csrf();
 
 $body = json_decode(file_get_contents('php://input'), true);
 if (!is_array($body)) {
     http_response_code(400);
     echo json_encode(['error' => 'Invalid or missing JSON request body']);
+    exit;
+}
+
+if (($_GET['action'] ?? '') === 'set_customer') {
+    cart_init($pdo);
+    $customerId = (int) ($body['customerId'] ?? 0);
+    if ($customerId > 0) {
+        $check = $pdo->prepare('SELECT customer_id FROM customers WHERE customer_id = :id');
+        $check->execute([':id' => $customerId]);
+        if (!$check->fetch()) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Customer not found.']);
+            exit;
+        }
+    }
+    cart_set_customer($customerId > 0 ? $customerId : null);
+    session_write_close();
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+if (($_GET['action'] ?? '') === 'clear') {
+    cart_init($pdo);
+    cart_clear();
+    session_write_close();
+    echo json_encode(['ok' => true]);
     exit;
 }
 

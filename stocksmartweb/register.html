@@ -236,15 +236,15 @@
 
     <div class="features">
       <div class="feat-card">
-        <div class="feat-icon orange">📦</div>
+        <div class="feat-icon orange">01</div>
         <span class="feat-label">Real-time inventory tracking</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon blue">📊</div>
+        <div class="feat-icon blue">02</div>
         <span class="feat-label">AI-powered demand forecasting</span>
       </div>
       <div class="feat-card">
-        <div class="feat-icon yellow">⚡</div>
+        <div class="feat-icon yellow">03</div>
         <span class="feat-label">Automated reorder workflows</span>
       </div>
     </div>
@@ -311,6 +311,20 @@
           </div>
         </div>
 
+        <!-- Phone -->
+        <div class="field">
+          <label for="phone">Phone <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+          <div class="input-wrap">
+            <span class="ico">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </span>
+            <input type="tel" id="phone" placeholder="98XXXXXXXX" autocomplete="tel" />
+          </div>
+          <span class="field-err" id="phone-err">Enter a valid phone number.</span>
+        </div>
+
         <!-- Password -->
         <div class="field">
           <label for="password">Password</label>
@@ -327,7 +341,7 @@
               </svg>
             </button>
           </div>
-          <span class="field-err" id="pwd-err">Password must be at least 8 characters.</span>
+          <span class="field-err" id="pwd-err">Min 8 chars with uppercase, lowercase, number &amp; symbol.</span>
         </div>
 
         <!-- Confirm Password -->
@@ -355,7 +369,7 @@
         </button>
       </form>
 
-      <p class="login-line">Already have an account? <a href="login.html">Sign in</a></p>
+      <p class="login-line">Already have an account? <a href="login.php">Sign in</a></p>
     </div>
   </main>
 
@@ -388,7 +402,8 @@
     const validName     = v => v.trim().length >= 2;
     const validUsername = v => /^[a-zA-Z0-9._-]{3,50}$/.test(v.trim());
     const validEmail    = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
-    const validPwd      = v => v.length >= 8;
+    const validPhone    = v => v.trim() === '' || /^[0-9+\-\s()]{7,20}$/.test(v.trim());
+    const validPwd      = v => v.length >= 8 && /[A-Z]/.test(v) && /[a-z]/.test(v) && /[0-9]/.test(v) && /[^A-Za-z0-9]/.test(v);
 
     function setField(inputEl, errEl, ok) {
       inputEl.classList.toggle('err', !ok);
@@ -400,6 +415,7 @@
       ['fullName',        'fullName-err',  () => validName(document.getElementById('fullName').value)],
       ['username',        'username-err',  () => validUsername(document.getElementById('username').value)],
       ['email',           'email-err',     () => validEmail(document.getElementById('email').value)],
+      ['phone',           'phone-err',     () => validPhone(document.getElementById('phone').value)],
       ['password',        'pwd-err',       () => validPwd(document.getElementById('password').value)],
       ['confirmPassword', 'confirm-err',   () => document.getElementById('confirmPassword').value === document.getElementById('password').value],
     ];
@@ -437,6 +453,7 @@
             full_name:        document.getElementById('fullName').value.trim(),
             username:         document.getElementById('username').value.trim(),
             email:            document.getElementById('email').value.trim(),
+            phone:            document.getElementById('phone').value.trim(),
             password:         document.getElementById('password').value,
             confirm_password: document.getElementById('confirmPassword').value,
           }),
@@ -445,15 +462,16 @@
         const data = await res.json();
 
         if (res.ok && data.ok) {
-          toast('✓ Account created! Redirecting to dashboard…');
-          setTimeout(() => { window.location.href = data.redirect || 'dashboard.php'; }, 1000);
+          toast('Account created. Check your email for a verification code…');
+          if (data.otp_preview) sessionStorage.setItem('ss_otp_preview', data.otp_preview);
+          setTimeout(() => { window.location.href = data.redirect || 'verify-otp.php'; }, 1000);
         } else {
-          toast('✗ ' + (data.error || 'Registration failed. Please try again.'));
+          toast(data.error || 'Registration failed. Please try again.');
           registerBtn.classList.remove('loading');
           registerBtn.disabled = false;
         }
       } catch (err) {
-        toast('✗ Network error. Please check your connection and try again.');
+        toast('Network error. Please check your connection and try again.');
         registerBtn.classList.remove('loading');
         registerBtn.disabled = false;
       }

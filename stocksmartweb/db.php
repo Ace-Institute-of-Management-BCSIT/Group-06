@@ -19,42 +19,62 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/config/app.php';
+require_once __DIR__ . '/middleware/security_headers.php';
+
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => app_is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
+}
+
+// ---------------------------------------------------------------------------
+// CSRF TOKEN — lazily generated once per session, reused by every page and
+// every api/*.php endpoint. Pages inject it into the DOM (see auth.php's
+// auth_user(), which now returns it as `csrf`); JS sends it back via the
+// `X-CSRF-Token` header on POST/PUT/DELETE requests. See api/_bootstrap.php
+// for the server-side check.
+// ---------------------------------------------------------------------------
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 // ---------------------------------------------------------------------------
 // 1) CONNECTION SETTINGS — edit these to match your XAMPP / phpMyAdmin setup
 // ---------------------------------------------------------------------------
-const DB_HOST = '127.0.0.1';   // XAMPP default; use 'localhost' if you prefer
-const DB_PORT = '3306';        // XAMPP default MySQL port
-const DB_NAME = 'stocksmart';
-const DB_USER = 'root';        // XAMPP default user
-const DB_PASS = '';            // XAMPP default has no password
+$dbHost = app_env('STOCKSMART_DB_HOST', '127.0.0.1');
+$dbPort = app_env('STOCKSMART_DB_PORT', '3306');
+$dbName = app_env('STOCKSMART_DB_NAME', 'stocksmart');
+$dbUser = app_env('STOCKSMART_DB_USER', 'root');
+$dbPass = app_env('STOCKSMART_DB_PASS');
 
 // ---------------------------------------------------------------------------
 // 2) BUILD THE PDO CONNECTION
 // ---------------------------------------------------------------------------
 $dsn = sprintf(
     'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-    DB_HOST,
-    DB_PORT,
-    DB_NAME
+    $dbHost,
+    $dbPort,
+    $dbName
 );
 
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,   // throw on errors
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,         // return assoc arrays
     PDO::ATTR_EMULATE_PREPARES   => false,                    // use real prepared statements
-    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
 ];
 
 try {
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
 } catch (PDOException $e) {
-    // In production, log this instead of echoing it to the browser.
+    error_log('StockSmart database connection failed: ' . $e->getMessage());
     http_response_code(500);
-    die('Database connection failed: ' . htmlspecialchars($e->getMessage()));
+    die('Database connection failed. Check the server configuration.');
 }
 
 // ---------------------------------------------------------------------------

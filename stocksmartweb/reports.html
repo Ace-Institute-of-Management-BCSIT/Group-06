@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Reports</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} }
+</style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="tabs" id="reportTabs">
+      <button class="tab active" data-type="sales">Sales</button>
+      <button class="tab" data-type="inventory">Inventory</button>
+      <button class="tab" data-type="purchases">Purchases</button>
+      <button class="tab" data-type="suppliers">Suppliers</button>
+      <button class="tab" data-type="customers">Customers</button>
+      <button class="tab" data-type="profit">Profit</button>
+      <button class="tab" data-type="revenue">Revenue</button>
+    </div>
+
+    <div class="toolbar">
+      <input class="pill" type="date" id="fromInput">
+      <input class="pill" type="date" id="toInput">
+      <button class="btn-export" id="applyBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+        Refresh
+      </button>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn-export" id="exportCsvBtn">Export CSV</button>
+        <button class="btn-export" id="exportExcelBtn">Export Excel</button>
+        <button class="btn-export" id="exportPdfBtn">Export PDF</button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead id="reportHead"></thead>
+        <tbody id="reportBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;">No data for this date range.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API_URL = 'api/reports.php';
+let currentType = 'sales';
+
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+function todayStr(offsetDays){
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+document.getElementById('fromInput').value = todayStr(-30);
+document.getElementById('toInput').value = todayStr(0);
+
+function currentParams(extra){
+  const params = new URLSearchParams({
+    type: currentType,
+    from: document.getElementById('fromInput').value,
+    to: document.getElementById('toInput').value,
+  });
+  if (extra) Object.entries(extra).forEach(([k, v]) => params.set(k, v));
+  return params;
+}
+
+async function loadReport(){
+  document.getElementById('reportHead').innerHTML = '<tr><th>Loading…</th></tr>';
+  document.getElementById('reportBody').innerHTML = '';
+  document.getElementById('emptyState').style.display = 'none';
+  try {
+    const res = await fetch(`${API_URL}?${currentParams({ format: 'json' }).toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load report');
+
+    document.getElementById('reportHead').innerHTML = '<tr>' + data.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr>';
+    document.getElementById('reportBody').innerHTML = data.rows.map(row =>
+      '<tr>' + row.map(cell => `<td>${escapeHtml(String(cell))}</td>`).join('') + '</tr>'
+    ).join('');
+    document.getElementById('emptyState').style.display = data.rows.length ? 'none' : 'block';
+  } catch (err) {
+    document.getElementById('reportHead').innerHTML = '';
+    document.getElementById('reportBody').innerHTML = '';
+    document.getElementById('emptyState').textContent = err.message;
+    document.getElementById('emptyState').style.display = 'block';
+  }
+}
+
+document.getElementById('reportTabs').addEventListener('click', e => {
+  const btn = e.target.closest('[data-type]');
+  if (!btn) return;
+  document.querySelectorAll('#reportTabs .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  currentType = btn.dataset.type;
+  loadReport();
+});
+
+document.getElementById('applyBtn').addEventListener('click', loadReport);
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+  window.location.href = `${API_URL}?${currentParams({ format: 'csv' }).toString()}`;
+});
+document.getElementById('exportExcelBtn').addEventListener('click', () => {
+  window.location.href = `${API_URL}?${currentParams({ format: 'excel' }).toString()}`;
+});
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  window.location.href = `${API_URL}?${currentParams({ format: 'pdf' }).toString()}`;
+});
+
+loadReport();
+</script>
+</body>
+</html>

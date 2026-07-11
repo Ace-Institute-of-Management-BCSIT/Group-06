@@ -6,13 +6,11 @@
 <title>StockSmart — Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/app.css">
 <style>
 
 /* ============================================================
    StockSmart — unified design system v2
-   Single-file build, no backend. Sample data only (see
-   SAMPLE DATA block in <script> — swap with real data later
-   without touching markup or styles).
 
    SIGNATURE ELEMENT: every card/row carries a 3px accent rail
    on its leading edge — quiet at rest, fully lit on hover/focus.
@@ -21,40 +19,6 @@
    designed system rather than five separate screens.
    ============================================================ */
 
-:root{
-  --navy-900: #0b1530;
-  --navy-800: #11204a;
-  --navy-700: #16307a;
-  --navy-600: #1d3f9e;
-  --accent: #5b6ef5;
-  --accent-light: #8b97ff;
-  --accent-dim: #e8eaff;
-  --ice: #eef1fc;
-  --bg: #f5f6fb;
-  --surface: #ffffff;
-  --line: #e8e9f3;
-  --text-900: #0f1226;
-  --text-600: #50546b;
-  --text-400: #9599ab;
-  --green: #169e63;
-  --green-bg: #e9f9f0;
-  --amber: #c9790f;
-  --amber-bg: #fdf3e3;
-  --red: #d8413f;
-  --red-bg: #fcecec;
-  --purple: #8454e8;
-  --purple-bg: #f2ecfd;
-  --teal: #0b8f8a;
-  --teal-bg: #e7f8f6;
-  --radius-lg: 18px;
-  --radius-md: 14px;
-  --radius-sm: 10px;
-  --shadow-sm: 0 1px 2px rgba(15,18,38,.05), 0 1px 3px rgba(15,18,38,.05);
-  --shadow-md: 0 4px 16px rgba(15,18,38,.07), 0 1px 3px rgba(15,18,38,.04);
-  --shadow-lg: 0 14px 36px rgba(11,21,48,.12);
-  --sidebar-w: 264px;
-  --ease: cubic-bezier(.22,1,.36,1);
-}
 
 *{ margin:0; padding:0; box-sizing:border-box; }
 
@@ -78,264 +42,12 @@ button{ font-family:inherit; cursor:pointer; border:none; background:none; }
 
 :focus-visible{ outline:2.5px solid var(--accent); outline-offset:2px; }
 
-/* ---------------- Layout shell ---------------- */
-.app{ display:flex; min-height:100vh; }
-
-/* ---------------- Sidebar ---------------- */
-.sidebar{
-  width:var(--sidebar-w);
-  min-height:100vh;
-  position:fixed;
-  top:0; left:0;
-  background:linear-gradient(195deg, var(--navy-900) 0%, var(--navy-800) 55%, var(--navy-700) 100%);
-  color:#dce1f7;
-  padding:26px 18px 22px;
-  display:flex;
-  flex-direction:column;
-  z-index:40;
-  transition:transform .3s var(--ease);
-}
-
-.brand{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:4px 8px 26px;
-  margin-bottom:14px;
-  border-bottom:1px solid rgba(255,255,255,.08);
-  text-decoration:none;
-  color:inherit;
-  cursor:pointer;
-  transition:opacity .15s var(--ease);
-}
-.brand:hover{ opacity:.88; }
-.brand-mark{
-  width:38px; height:38px;
-  border-radius:11px;
-  background:linear-gradient(135deg, var(--accent), #9a5cf0);
-  display:grid; place-items:center;
-  box-shadow:0 4px 14px rgba(91,110,245,.45);
-  flex-shrink:0;
-}
-.brand-mark svg{ width:20px; height:20px; }
-.brand-text{ font-size:18.5px; font-weight:800; color:#fff; letter-spacing:-.02em; }
-.brand-text span{ color:var(--accent-light); font-weight:800; }
-.brand-sub{ font-size:10.5px; color:#7986bd; letter-spacing:.05em; margin-top:1px; }
-
-.nav-scroll{ flex:1; overflow-y:auto; }
-
-.menu-title{
-  color:#5f6aa3;
-  font-size:10.5px;
-  font-weight:700;
-  letter-spacing:.09em;
-  margin:20px 10px 9px;
-}
-
-.menu{ list-style:none; display:flex; flex-direction:column; gap:3px; }
-
-.menu-item{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:10px 12px;
-  border-radius:11px;
-  font-size:13.6px;
-  font-weight:500;
-  color:#b6bee3;
-  position:relative;
-  transition:background .18s var(--ease), color .18s var(--ease);
-}
-.menu-item .left{ display:flex; align-items:center; gap:11px; text-decoration:none; color:inherit; flex:1; }
-.menu-item svg{ width:18px; height:18px; opacity:.85; flex-shrink:0; }
-
-.menu-item:hover{
-  background:rgba(255,255,255,.07);
-  color:#fff;
-}
-
-.menu-item.active{
-  background:linear-gradient(90deg, var(--accent) 0%, #7b6af2 100%);
-  color:#fff;
-  box-shadow:0 6px 16px rgba(91,110,245,.35);
-}
-.menu-item.active svg{ opacity:1; }
-
-.badge{
-  font-size:10.5px;
-  font-weight:700;
-  padding:2.5px 8px;
-  border-radius:20px;
-  color:#fff;
-  line-height:1.4;
-}
-.badge.amber{ background:var(--amber); }
-.badge.red{ background:var(--red); }
-
-.sidebar-bottom{
-  margin-top:18px;
-  padding-top:16px;
-  border-top:1px solid rgba(255,255,255,.08);
-}
-
-.upgrade-card{
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.09);
-  border-radius:var(--radius-md);
-  padding:14px;
-  margin-bottom:14px;
-}
-.upgrade-card p{ font-size:11.5px; color:#aab2e0; line-height:1.5; margin-bottom:10px; }
-.upgrade-card .title{ font-size:13px; font-weight:700; color:#fff; margin-bottom:4px; }
-.upgrade-btn{
-  display:block;
-  text-align:center;
-  background:#fff;
-  color:var(--navy-900);
-  font-size:12px;
-  font-weight:700;
-  padding:8px;
-  border-radius:9px;
-  transition:transform .15s var(--ease);
-}
-.upgrade-btn:hover{ transform:translateY(-1px); }
-
-.profile-mini{
-  display:flex;
-  align-items:center;
-  gap:11px;
-  padding:8px;
-  border-radius:12px;
-  transition:background .18s var(--ease);
-}
-.profile-mini:hover{ background:rgba(255,255,255,.06); }
-
-.avatar{
-  width:38px; height:38px;
-  border-radius:50%;
-  background:linear-gradient(135deg,#7b6af2,#9a5cf0);
-  display:grid; place-items:center;
-  font-size:13px; font-weight:700; color:#fff;
-  flex-shrink:0;
-}
-.avatar.sm{ width:34px; height:34px; font-size:12px; }
-
-.profile-mini b{ font-size:13px; color:#fff; display:block; }
-.profile-mini p{ font-size:11px; color:#8b96c9; margin-top:1px; }
-.profile-mini .chev{ margin-left:auto; opacity:.6; }
-
-/* mobile sidebar toggle */
-.sidebar-toggle{
-  display:none;
-  position:fixed;
-  top:16px; left:16px;
-  z-index:60;
-  width:42px; height:42px;
-  background:var(--navy-900);
-  border-radius:11px;
-  align-items:center;
-  justify-content:center;
-  box-shadow:var(--shadow-md);
-}
-.sidebar-toggle svg{ width:20px; height:20px; color:#fff; }
-.sidebar-backdrop{
-  display:none;
-  position:fixed; inset:0;
-  background:rgba(11,21,48,.45);
-  z-index:35;
-}
-
-/* ---------------- Main ---------------- */
-.main{
-  margin-left:var(--sidebar-w);
-  flex:1;
-  min-width:0;
-  padding:22px 30px 50px;
-}
-
-/* ---------------- Topbar ---------------- */
-.topbar{
-  background:var(--surface);
-  border-radius:18px;
-  padding:14px 22px;
-  margin-bottom:22px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:18px;
-  box-shadow:var(--shadow-sm);
-  flex-wrap:wrap;
-}
-
-.topbar-title h1{ font-size:21px; font-weight:800; letter-spacing:-.02em; }
-.topbar-title .meta{
-  display:flex; align-items:center; gap:8px;
-  color:var(--text-400); font-size:12.5px; margin-top:3px;
-}
-.topbar-title .dot{ width:4px; height:4px; border-radius:50%; background:var(--text-400); }
-#liveClock{ font-variant-numeric:tabular-nums; color:var(--text-600); font-weight:600; }
-
-.topbar-actions{ display:flex; align-items:center; gap:14px; flex:1; justify-content:flex-end; flex-wrap:wrap; }
-
-.search-box{
-  position:relative;
-  width:300px;
-  max-width:100%;
-}
-.search-box svg{
-  position:absolute; left:14px; top:50%; transform:translateY(-50%);
-  width:17px; height:17px; color:var(--text-400);
-}
-.search-box input{
-  width:100%;
-  padding:10.5px 14px 10.5px 40px;
-  border:1.5px solid var(--line);
-  border-radius:11px;
-  font-size:13.5px;
-  background:var(--bg);
-  color:var(--text-900);
-  transition:border-color .18s var(--ease), background .18s var(--ease), box-shadow .18s var(--ease);
-}
-.search-box input::placeholder{ color:var(--text-400); }
-.search-box input:focus{
-  outline:none;
-  border-color:var(--accent);
-  background:#fff;
-  box-shadow:0 0 0 4px var(--accent-dim);
-}
-
-.icon-btn{
-  position:relative;
-  width:42px; height:42px;
-  border-radius:11px;
-  background:var(--bg);
-  display:grid; place-items:center;
-  color:var(--text-600);
-  transition:background .18s var(--ease), color .18s var(--ease), transform .15s var(--ease);
-  flex-shrink:0;
-}
-.icon-btn:hover{ background:var(--ice); color:var(--accent); transform:translateY(-1px); }
-.icon-btn svg{ width:19px; height:19px; }
-
-.notif-dot{
-  position:absolute; top:9px; right:9px;
-  width:8px; height:8px; border-radius:50%;
-  background:var(--red);
-  border:2px solid #fff;
-}
-
-.top-profile{
-  display:flex; align-items:center; gap:10px;
-  background:var(--bg);
-  padding:6px 14px 6px 6px;
-  border-radius:12px;
-  transition:background .18s var(--ease);
-  flex-shrink:0;
-}
-.top-profile:hover{ background:var(--ice); }
-.top-profile b{ font-size:13px; display:block; }
-.top-profile p{ font-size:11px; color:var(--text-400); margin-top:1px; }
+/* Sidebar (brand/nav/badges/avatar/mobile-toggle), .app grid, .main,
+   .topbar, .icon-btn, .notif-dot and #liveClock are now owned entirely by
+   assets/css/app.css — no local overrides (the old ones here drifted from
+   the shared values: a 42px icon-btn instead of 38px, an account-menu
+   positioned 4px off, etc. — exactly the per-page inconsistency being
+   eliminated). */
 
 /* ---------------- Stat cards ---------------- */
 .stats-grid{
@@ -687,155 +399,36 @@ tbody tr:last-child td{ border-bottom:none; }
 }
 
 @media (max-width:880px){
-  .sidebar{ transform:translateX(-100%); box-shadow:var(--shadow-lg); }
-  .sidebar.open{ transform:translateX(0); }
-  .sidebar-toggle{ display:grid; }
-  .sidebar-backdrop.show{ display:block; }
-  .main{ margin-left:0; padding:80px 16px 40px; }
   .stats-grid{ grid-template-columns:repeat(2, 1fr); }
-  .search-box{ width:200px; }
-  .topbar-title h1{ font-size:18px; }
 }
 
 @media (max-width:560px){
   .stats-grid{ grid-template-columns:1fr 1fr; }
   .quick-actions{ grid-template-columns:1fr 1fr; }
-  .search-box{ display:none; }
-  .top-profile p{ display:none; }
-  .topbar{ padding:12px 14px; }
 }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:.001s !important; transition-duration:.001s !important; }
 }
 
+/* Account menu, notif panel, and toast are now owned entirely by
+   assets/css/app.css — the local copies here had drifted (account-menu
+   4px lower, notif-panel 20px narrower, different shadow tokens). */
 </style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
 </head>
 <body>
-
-<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle menu">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-</button>
-<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
 <div class="app">
 
   <!-- ============ SIDEBAR ============ -->
-  <aside class="sidebar" id="sidebar">
-    <a class="brand" href="index.html" aria-label="StockSmart home">
-      <div class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
-      </div>
-      <div>
-        <div class="brand-text">Stock<span>Smart</span></div>
-        <div class="brand-sub">INVENTORY OS</div>
-      </div>
-    </a>
-
-    <div class="nav-scroll">
-      <p class="menu-title">MAIN</p>
-      <ul class="menu">
-        <li class="menu-item active"><a class="left" href="dashboard.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-          Dashboard</a></li>
-        <li class="menu-item"><a class="left" href="products.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13V21"/></svg>
-          Products</a></li>
-        <li class="menu-item"><a class="left" href="inventory.html">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M9 13h6"/></svg>
-          Inventory</a></li>
-        <li class="menu-item"><a class="left" href="checkout.php">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
-          Checkout</a></li>
-        <!--
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-          Suppliers</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M9 13h6"/></svg>
-          Sales</span></li>
-        -->
-      </ul>
-
-      <p class="menu-title">ALERTS</p>
-      <ul class="menu">
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-          Restocking Alerts</span><span class="badge amber" id="badgeRestock">0</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          Expiry Alerts</span><span class="badge red" id="badgeExpiry">0</span></li>
-      </ul>
-
-      <!--
-      <p class="menu-title">ADMIN</p>
-      <ul class="menu">
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
-          Reports</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          Users</span></li>
-        <li class="menu-item"><span class="left">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          Settings</span></li>
-      </ul>
-      -->
-    </div>
-
-    <div class="sidebar-bottom">
-      <!--
-      <div class="upgrade-card">
-        <div class="title">Go Pro</div>
-        <p>Unlock multi-warehouse sync and advanced forecasting.</p>
-        <a href="#" class="upgrade-btn">Upgrade plan</a>
-      </div>
-      -->
-      <div class="profile-mini">
-        <div class="avatar">AD</div>
-        <div>
-          <b>Admin User</b>
-          <p>Super Admin</p>
-        </div>
-        <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-      </div>
-    </div>
-  </aside>
+  <!--SIDEBAR-->
 
   <!-- ============ MAIN ============ -->
   <main class="main">
 
-    <!-- Topbar -->
-    <header class="topbar">
-      <div class="topbar-title">
-        <h1>Dashboard</h1>
-        <div class="meta">
-          <span id="liveDate"></span>
-          <span class="dot"></span>
-          <span id="liveClock"></span>
-        </div>
-      </div>
-
-      <div class="topbar-actions">
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Search products, suppliers, orders…">
-        </div>
-
-        <button class="icon-btn" aria-label="Notifications" id="notifBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          <span class="notif-dot"></span>
-        </button>
-
-        <a href="#" class="top-profile">
-          <div class="avatar sm">AD</div>
-          <div>
-            <b>Admin User</b>
-            <p>Super Admin</p>
-          </div>
-        </a>
-      </div>
-    </header>
+    <!--TOPBAR-->
 
     <!-- Stat cards -->
     <section class="stats-grid" id="statsGrid"></section>
@@ -984,7 +577,6 @@ async function loadDashboardData(){
    RENDER HELPERS
    ============================================================ */
 
-const fmtRs = n => 'Rs. ' + Number(n).toLocaleString('en-IN');
 const fmtNum = n => Number(n).toLocaleString('en-IN');
 
 function trendSvg(dir){
@@ -1004,8 +596,8 @@ function renderStats(data){
       svg:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
     { key:'totalSuppliers', label:'Total Suppliers',   icon:'truck',   color:'green',
       svg:'<rect x="2" y="7" width="13" height="11" rx="2"/><path d="M15 10h4l3 3v5h-7z"/><circle cx="7" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/>' },
-    { key:'todaysSales',     label:"Today's Sales",     icon:'rupee',   color:'purple',
-      svg:'<path d="M7 4h10"/><path d="M7 8h10"/><path d="M7 4c5 0 8 2.4 8 5.6S12 14 7 14"/><path d="M7 14l8 7"/>' },
+    { key:'todaysSales',     label:"Today's Sales",     icon:'banknote', color:'purple',
+      svg:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>' },
     { key:'restockAlerts',  label:'Restocking Alerts', icon:'restock', color:'teal',
       svg:'<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>' }
   ];
@@ -1158,11 +750,10 @@ function renderActivity(items){
   }).join('');
 }
 
-/* ---- Sidebar badges ---- */
-function renderBadges(stats){
-  document.getElementById('badgeRestock').textContent = stats.restockAlerts.value;
-  document.getElementById('badgeExpiry').textContent = stats.expiringSoon.value;
-}
+/* Sidebar ALERTS badge counts are now handled centrally by
+   assets/js/nav-guard.js (fillBadgeCounts) via api/notifications.php,
+   the same source every page uses — this used to read data.stats
+   from api/dashboard.php instead, a second number that could drift. */
 
 /* ---- Date helpers ---- */
 function formatDate(iso){
@@ -1175,57 +766,50 @@ function formatExpiryDate(daysLeft){
   return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
 }
 
-/* ---- Live clock ---- */
-function updateClock(){
-  const now = new Date();
-  document.getElementById('liveDate').textContent = now.toLocaleDateString('en-GB', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
-  document.getElementById('liveClock').textContent = now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-}
+/* Live clock and mobile sidebar toggle are now handled centrally by
+   assets/js/nav-guard.js (initLiveClock/initSidebarToggle) against the
+   shared #liveClock/#liveDate/#sidebarToggle markup every page renders. */
 
-/* ---- Mobile sidebar ---- */
-function initSidebarToggle(){
-  const sidebar = document.getElementById('sidebar');
-  const toggle = document.getElementById('sidebarToggle');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  function open(){ sidebar.classList.add('open'); backdrop.classList.add('show'); }
-  function close(){ sidebar.classList.remove('open'); backdrop.classList.remove('show'); }
-  toggle.addEventListener('click', () => sidebar.classList.contains('open') ? close() : open());
-  backdrop.addEventListener('click', close);
-}
-
-/* ---- Quick action buttons (UI-only, no backend) ---- */
+/* ---- Quick action buttons — each navigates to its real page ---- */
 function initQuickActions(){
-  const labels = {
-    'add-product':       'Add Product',
-    'update-inventory':  'Update Inventory',
-    'new-checkout':      'New Checkout',
-    'generate-report':   'Generate Report'
-  };
-  // Actions that map to a real page in the site navigate there;
-  // the rest still log to console as placeholders for a real handler.
   const destinations = {
-    'add-product':   'products.html',
-    'new-checkout':  'checkout.php'
+    'add-product':       'products.php',
+    'update-inventory':  'inventory.php',
+    'new-checkout':      'checkout.php',
+    'generate-report':   'reports.php'
   };
   document.querySelectorAll('.qa-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const label = labels[btn.dataset.action] || 'Action';
       btn.style.transform = 'scale(.96)';
       setTimeout(() => { btn.style.transform = ''; }, 140);
       const dest = destinations[btn.dataset.action];
-      if (dest) {
-        window.location.href = dest;
-      } else {
-        console.log(`[StockSmart] "${label}" clicked — wire this up to your real handler.`);
-      }
+      if (dest) window.location.href = dest;
     });
   });
 }
 
-/* ---- Notification bell (UI-only) ---- */
-function initNotifBell(){
-  document.getElementById('notifBtn').addEventListener('click', () => {
-    console.log('[StockSmart] Notifications clicked — hook up a dropdown/panel here.');
+/* ---- Toast helper ---- */
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 2600);
+}
+
+/* Notification bell and account/profile chip (avatar/name/role, dropdown,
+   Logout) are now handled centrally by assets/js/nav-guard.js
+   (initNotifBell/fillUserChip/fillProfileCard) against the shared topbar
+   and sidebar markup every page renders. */
+
+/* ---- Global search — jumps to Products pre-filtered by the typed term ---- */
+function initGlobalSearch(){
+  const input = document.getElementById('globalSearch');
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const q = input.value.trim();
+    window.location.href = q ? `products.php?search=${encodeURIComponent(q)}` : 'products.php';
   });
 }
 
@@ -1233,29 +817,28 @@ function initNotifBell(){
    INIT
    ============================================================ */
 async function init(){
-  updateClock();
-  setInterval(updateClock, 1000);
-
-  initSidebarToggle();
   initQuickActions();
-  initNotifBell();
+  initGlobalSearch();
 
   try {
     const data = await loadDashboardData();
+    lastDashboardData = data;
     renderStats(data.stats);
     renderChart(data.weeklySales);
     renderRecentSales(data.recentSales);
     renderLowStock(data.lowStockProducts);
     renderExpiry(data.expiryAlerts);
     renderActivity(data.activity);
-    renderBadges(data.stats);
   } catch (err) {
     console.error(err);
+    showToast('Could not load dashboard data from the server', true);
   }
 }
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
 
 </body>
 </html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Roles &amp; Permissions</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .role-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .role-head h2{ font-size:18px; margin:0; }
+  .role-desc{ color:var(--text-400); font-size:13px; margin:0 0 20px; }
+  .module-group{ margin-bottom:18px; }
+  .module-title{ font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-400); font-weight:700; margin:0 0 10px; }
+  .perm-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px 20px; }
+  .perm-check{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:9px; border:1px solid var(--border); cursor:pointer; font-size:13px; }
+  .perm-check:hover{ background:var(--bg); }
+  .perm-check input{ width:16px; height:16px; accent-color:var(--blue-accent); }
+  .modal-foot-inline{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; padding-top:18px; border-top:1px solid var(--border); }
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} .perm-grid{grid-template-columns:1fr;} }
+</style>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="toolbar" style="justify-content:space-between;">
+      <div class="role-tabs" id="roleTabs"></div>
+      <button class="btn-add" id="addRoleBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Role
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="role-head">
+        <h2 id="roleName">—</h2>
+      </div>
+      <p class="role-desc" id="roleDesc">—</p>
+      <div id="permGroups"></div>
+      <div class="modal-foot-inline">
+        <button class="btn-primary" id="savePermsBtn">Save Permissions</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Role Modal -->
+<div class="overlay" id="roleOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Add Role</h3><button id="closeRoleModalBtn">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Role Name</label><input type="text" id="newRoleName" placeholder="e.g. Warehouse Lead"></div>
+      <div class="field"><label>Description</label><input type="text" id="newRoleDesc" placeholder="Optional"></div>
+    </div>
+    <div class="modal-foot-inline" style="margin:0;padding:16px 20px;border-top:1px solid var(--border);">
+      <button class="btn-secondary" id="cancelRoleModalBtn">Cancel</button>
+      <button class="btn-primary" id="createRoleBtn">Create Role</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
+
+<script>
+const API_URL = 'api/roles.php';
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+let roles = [], permissions = [], rolePermissions = {}, activeRoleId = null;
+
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+async function loadRoles(){
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load roles');
+    roles = data.roles; permissions = data.permissions; rolePermissions = data.role_permissions;
+    if (!activeRoleId && roles.length) activeRoleId = roles[0].role_id;
+    renderTabs();
+    renderPermissions();
+  } catch (err) { showToast(err.message, true); }
+}
+
+function renderTabs(){
+  document.getElementById('roleTabs').innerHTML = roles.map(r =>
+    `<button class="role-tab ${r.role_id === activeRoleId ? 'active' : ''}" data-role="${r.role_id}">${r.role_name}</button>`
+  ).join('');
+}
+
+function renderPermissions(){
+  const role = roles.find(r => r.role_id === activeRoleId);
+  if (!role) return;
+  document.getElementById('roleName').textContent = role.role_name;
+  document.getElementById('roleDesc').textContent = role.role_description || 'No description provided.';
+
+  const assigned = new Set(rolePermissions[activeRoleId] || []);
+  const groups = {};
+  permissions.forEach(p => { (groups[p.module_name] = groups[p.module_name] || []).push(p); });
+
+  document.getElementById('permGroups').innerHTML = Object.keys(groups).sort().map(mod => `
+    <div class="module-group">
+      <p class="module-title">${mod}</p>
+      <div class="perm-grid">
+        ${groups[mod].map(p => `
+          <label class="perm-check">
+            <input type="checkbox" value="${p.permission_id}" ${assigned.has(p.permission_id) ? 'checked' : ''}>
+            ${p.permission_name}
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+document.getElementById('roleTabs').addEventListener('click', e => {
+  const btn = e.target.closest('[data-role]');
+  if (!btn) return;
+  activeRoleId = parseInt(btn.dataset.role, 10);
+  renderTabs();
+  renderPermissions();
+});
+
+document.getElementById('savePermsBtn').addEventListener('click', async () => {
+  const ids = Array.from(document.querySelectorAll('#permGroups input:checked')).map(el => parseInt(el.value, 10));
+  const btn = document.getElementById('savePermsBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API_URL}?id=${activeRoleId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ permission_ids: ids }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save permissions');
+    showToast('Permissions updated');
+    await loadRoles();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('addRoleBtn').addEventListener('click', () => document.getElementById('roleOverlay').classList.add('open'));
+document.getElementById('closeRoleModalBtn').addEventListener('click', () => document.getElementById('roleOverlay').classList.remove('open'));
+document.getElementById('cancelRoleModalBtn').addEventListener('click', () => document.getElementById('roleOverlay').classList.remove('open'));
+
+document.getElementById('createRoleBtn').addEventListener('click', async () => {
+  const name = document.getElementById('newRoleName').value.trim();
+  const desc = document.getElementById('newRoleDesc').value.trim();
+  if (!name) { showToast('Role name is required', true); return; }
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify({ role_name: name, role_description: desc }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create the role');
+    showToast('Role created');
+    document.getElementById('roleOverlay').classList.remove('open');
+    document.getElementById('newRoleName').value = '';
+    document.getElementById('newRoleDesc').value = '';
+    activeRoleId = data.id;
+    await loadRoles();
+  } catch (err) { showToast(err.message, true); }
+});
+
+loadRoles();
+</script>
+</body>
+</html>

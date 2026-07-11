@@ -674,7 +674,7 @@
             </div>
             <span class="remember-lbl">Remember Me</span>
           </label>
-          <a href="#" class="forgot">Forgot Password?</a>
+          <a href="forgot-password.php" class="forgot">Forgot Password?</a>
         </div>
 
         <button type="submit" class="btn-login" id="loginBtn">
@@ -683,7 +683,7 @@
         </button>
       </form>
 
-      <p class="register-line">Not registered yet? <a href="register.html">Create an account</a></p>
+      <p class="register-line">Not registered yet? <a href="register.php">Create an account</a></p>
 
       <div class="info-card">
         <div class="info-icon">
@@ -776,6 +776,9 @@
         if (res.ok && data.ok) {
           toast('Logged in successfully! Redirecting…');
           setTimeout(() => { window.location.href = data.redirect || 'dashboard.php'; }, 800);
+        } else if (data.needs_verification && data.user_id) {
+          toast('Please verify your email to continue. Redirecting…');
+          setTimeout(() => { window.location.href = 'verify-otp.php?user_id=' + data.user_id; }, 800);
         } else {
           toast( (data.error || 'Login failed. Please try again.'));
           loginBtn.classList.remove('loading');

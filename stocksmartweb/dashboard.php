@@ -1,51 +1,28 @@
 <?php
 /**
  * ============================================================================
- *  StockSmart — Dashboard (dashboard.php)
+ *  StockSmart — Dashboard (dashboard.php) — ROOT FILE
  * ============================================================================
- *  This is the authenticated entry point after login.
+ *  This file goes in your project ROOT (stocksmartweb/dashboard.php), NOT
+ *  inside the api/ folder. It is the authenticated PAGE WRAPPER — it checks
+ *  the session, injects the logged-in user (with CSRF token) into the page,
+ *  and prints dashboard.html's markup.
  *
- *  What it does:
- *    1. Requires auth.php, which checks $_SESSION['user_id'].
- *       Unauthenticated requests are redirected to login.html automatically.
- *    2. Passes the logged-in user's name, role, and avatar to the page
- *       via a small inline JSON block so dashboard.html's JS can populate
- *       the header greeting without an extra fetch().
- *    3. Serves the full dashboard.html content (via include) with one
- *       modification: the <head> section injects the user data variable
- *       before any other scripts run.
- *
- *  Why not just redirect to dashboard.html?
- *    dashboard.html is a static file — it has no session check and can be
- *    opened directly by anyone who knows the URL. dashboard.php gates it.
- *
- *  How to link to this page everywhere:
- *    All "go to dashboard" links and redirects should point to dashboard.php,
- *    not dashboard.html.
+ *  It does NOT contain any SQL or JSON API code. That code belongs in the
+ *  SEPARATE file api/dashboard.php, which is a different file with the same
+ *  name in a different folder. If you see SQL queries or `api_require_login()`
+ *  in this file, you have the wrong contents in the wrong place — swap them.
  * ============================================================================
  */
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/auth.php';   // redirects to login.html if not logged in
+require_once __DIR__ . '/auth.php';   // redirects to login.php if not logged in
+require_once __DIR__ . '/page_renderer.php';
 
-$user = auth_user();   // returns ['id', 'name', 'username', 'role', 'avatar']
+auth_require_permission('dashboard.view');
 
-// Encode user data safely for inline JS injection
-$userJson = json_encode($user, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
-?>
-<!DOCTYPE html>
-<!-- dashboard.php injects STOCKSMART_USER before dashboard.html's scripts run -->
-<script>window.STOCKSMART_USER = <?= $userJson ?>;</script>
-<?php
-// Include the actual dashboard HTML content.
-// This means dashboard.html continues to work as a standalone dev preview
-// while dashboard.php adds the authentication layer on top.
-$dashboardHtml = file_get_contents(__DIR__ . '/dashboard.html');
-
-// Strip the <!DOCTYPE html> from the included file to avoid duplication
-// (we already outputted it above). Also strip the opening <html> tag if present.
-$dashboardHtml = preg_replace('/^<!DOCTYPE[^>]*>\s*/i', '', $dashboardHtml);
-$dashboardHtml = preg_replace('/^<html[^>]*>\s*/i', '', $dashboardHtml);
-
-echo $dashboardHtml;
+render_ui_template('dashboard.html', auth_user(), 'dashboard', 'Dashboard', [
+    'id' => 'globalSearch',
+    'placeholder' => 'Search products, suppliers, orders…',
+]);

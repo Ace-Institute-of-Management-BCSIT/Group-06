@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Users</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .user-cell{display:flex;align-items:center;gap:12px;}
+  .user-name{font-weight:700;font-size:13.5px;}
+  .user-sub{font-size:11.5px;color:var(--text-400);margin-top:1px;}
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} .stats{grid-template-columns:repeat(2,1fr);} }
+</style>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="stats">
+      <div class="stat-card"><div class="stat-value" id="statTotal">0</div><div class="stat-label">Total Users</div></div>
+      <div class="stat-card"><div class="stat-value" id="statActive">0</div><div class="stat-label">Active</div></div>
+      <div class="stat-card"><div class="stat-value" id="statPending">0</div><div class="stat-label">Pending Verification</div></div>
+      <div class="stat-card"><div class="stat-value" id="statLocked">0</div><div class="stat-label">Locked</div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="searchInput" placeholder="Search by name, username, or email...">
+      </div>
+      <select class="pill" id="roleFilter"><option value="">All Roles</option></select>
+      <select class="pill" id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="pending">Pending</option>
+        <option value="inactive">Inactive</option>
+        <option value="suspended">Suspended</option>
+      </select>
+      <button class="btn-add" id="addUserBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add User
+      </button>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr><th>User</th><th>Role</th><th>Status</th><th>Last Login</th><th style="text-align:right;">Actions</th></tr>
+        </thead>
+        <tbody id="usersBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;">No users match your filters.</div>
+    </div>
+  </main>
+</div>
+
+<!-- User Modal -->
+<div class="overlay" id="userOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Add User</h3>
+      <button id="closeModalBtn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Full Name</label><input type="text" id="fFullName"></div>
+        <div class="field"><label>Username</label><input type="text" id="fUsername"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Email</label><input type="email" id="fEmail"></div>
+        <div class="field"><label>Phone</label><input type="text" id="fPhone"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Role</label><select id="fRole"></select></div>
+        <div class="field"><label>Status</label>
+          <select id="fStatus">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label id="fPasswordLabel">Password</label>
+        <input type="password" id="fPassword" autocomplete="new-password">
+        <div class="field-hint" id="fPasswordHint">Min 8 chars with uppercase, lowercase, number &amp; symbol.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="cancelModalBtn">Cancel</button>
+      <button class="btn-primary" id="saveUserBtn">Save User</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
+
+<script>
+const API_URL = 'api/users.php';
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+const CURRENT_USER_ID = (window.STOCKSMART_USER && window.STOCKSMART_USER.id) || 0;
+let allUsers = [];
+let allRoles = [];
+let editingId = null;
+
+function showToast(msg, isError){
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function fmtDate(v){
+  if (!v) return 'Never';
+  return new Date(v.replace(' ', 'T')).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+}
+
+async function loadUsers(){
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load users');
+    allUsers = data.users;
+    allRoles = data.roles;
+    document.getElementById('fRole').innerHTML = allRoles.map(r => `<option value="${r.role_id}">${r.role_name}</option>`).join('');
+    document.getElementById('roleFilter').innerHTML = '<option value="">All Roles</option>' + allRoles.map(r => `<option value="${r.role_id}">${r.role_name}</option>`).join('');
+    render();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+function render(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const roleFilter = document.getElementById('roleFilter').value;
+  const statusFilter = document.getElementById('statusFilter').value;
+
+  const filtered = allUsers.filter(u => {
+    const isLocked = u.locked_until && new Date(u.locked_until.replace(' ', 'T')) > new Date();
+    if (statusFilter === 'active' && (u.status !== 'active' || isLocked)) return false;
+    if (statusFilter && statusFilter !== 'active' && u.status !== statusFilter) return false;
+    if (roleFilter && String(u.role_id) !== roleFilter) return false;
+    if (q && !(u.full_name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('statTotal').textContent = allUsers.length;
+  document.getElementById('statActive').textContent = allUsers.filter(u => u.status === 'active').length;
+  document.getElementById('statPending').textContent = allUsers.filter(u => u.status === 'pending').length;
+  document.getElementById('statLocked').textContent = allUsers.filter(u => u.locked_until && new Date(u.locked_until.replace(' ', 'T')) > new Date()).length;
+
+  const tbody = document.getElementById('usersBody');
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+
+  tbody.innerHTML = filtered.map(u => {
+    const isLocked = u.locked_until && new Date(u.locked_until.replace(' ', 'T')) > new Date();
+    const statusLabel = isLocked ? 'Locked' : u.status.charAt(0).toUpperCase() + u.status.slice(1);
+    const statusClass = isLocked ? 'status-locked' : 'status-' + u.status;
+    return `
+      <tr>
+        <td>
+          <div class="user-cell">
+            <div class="avatar" style="width:34px;height:34px;font-size:12px;">${(u.avatar_emoji || u.full_name.charAt(0)).toString().slice(0,2).toUpperCase()}</div>
+            <div>
+              <div class="user-name">${escapeHtml(u.full_name)}${u.user_id === CURRENT_USER_ID ? ' (you)' : ''}</div>
+              <div class="user-sub">@${escapeHtml(u.username)} · ${escapeHtml(u.email)}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="role-pill">${escapeHtml(u.role_name)}</span></td>
+        <td><span class="status-pill ${statusClass}">${statusLabel}</span></td>
+        <td>${fmtDate(u.last_login_at)}</td>
+        <td>
+          <div class="row-actions" style="justify-content:flex-end;">
+            <button title="Edit" data-edit="${u.user_id}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            </button>
+            ${isLocked ? `<button title="Unlock" data-unlock="${u.user_id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>` : ''}
+            ${u.user_id !== CURRENT_USER_ID ? `<button class="danger" title="Deactivate" data-deactivate="${u.user_id}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('roleFilter').addEventListener('change', render);
+document.getElementById('statusFilter').addEventListener('change', render);
+
+function openModal(user){
+  editingId = user ? user.user_id : null;
+  document.getElementById('modalTitle').textContent = user ? 'Edit User' : 'Add User';
+  document.getElementById('fFullName').value = user ? user.full_name : '';
+  document.getElementById('fUsername').value = user ? user.username : '';
+  document.getElementById('fUsername').disabled = !!user;
+  document.getElementById('fEmail').value = user ? user.email : '';
+  document.getElementById('fPhone').value = user ? (user.phone || '') : '';
+  document.getElementById('fRole').value = user ? user.role_id : (allRoles[0] ? allRoles[0].role_id : '');
+  document.getElementById('fStatus').value = user ? user.status : 'active';
+  document.getElementById('fPassword').value = '';
+  document.getElementById('fPasswordLabel').textContent = user ? 'Reset Password (optional)' : 'Password';
+  document.getElementById('fPasswordHint').textContent = user
+    ? 'Leave blank to keep the current password. Otherwise: min 8 chars with uppercase, lowercase, number & symbol.'
+    : 'Min 8 chars with uppercase, lowercase, number & symbol.';
+  document.getElementById('userOverlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('userOverlay').classList.remove('open'); }
+
+document.getElementById('addUserBtn').addEventListener('click', () => openModal(null));
+document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+
+document.getElementById('usersBody').addEventListener('click', async e => {
+  const editBtn = e.target.closest('[data-edit]');
+  const unlockBtn = e.target.closest('[data-unlock]');
+  const deactivateBtn = e.target.closest('[data-deactivate]');
+
+  if (editBtn) {
+    const user = allUsers.find(u => u.user_id === parseInt(editBtn.dataset.edit, 10));
+    if (user) openModal(user);
+  }
+  if (unlockBtn) {
+    try {
+      const res = await fetch(`${API_URL}?id=${unlockBtn.dataset.unlock}&action=unlock`, {
+        method: 'POST', headers: { 'X-CSRF-Token': CSRF_TOKEN },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not unlock the account');
+      showToast('Account unlocked');
+      await loadUsers();
+    } catch (err) { showToast(err.message, true); }
+  }
+  if (deactivateBtn) {
+    if (!confirm('Deactivate this user? They will no longer be able to log in.')) return;
+    try {
+      const res = await fetch(`${API_URL}?id=${deactivateBtn.dataset.deactivate}`, {
+        method: 'DELETE', headers: { 'X-CSRF-Token': CSRF_TOKEN },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not deactivate the user');
+      showToast('User deactivated');
+      await loadUsers();
+    } catch (err) { showToast(err.message, true); }
+  }
+});
+
+document.getElementById('saveUserBtn').addEventListener('click', async () => {
+  const payload = {
+    full_name: document.getElementById('fFullName').value.trim(),
+    username: document.getElementById('fUsername').value.trim(),
+    email: document.getElementById('fEmail').value.trim(),
+    phone: document.getElementById('fPhone').value.trim(),
+    role_id: document.getElementById('fRole').value,
+    status: document.getElementById('fStatus').value,
+  };
+  const pwd = document.getElementById('fPassword').value;
+  if (editingId) payload.new_password = pwd; else payload.password = pwd;
+
+  const btn = document.getElementById('saveUserBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(editingId ? `${API_URL}?id=${editingId}` : API_URL, {
+      method: editingId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save the user');
+    showToast(editingId ? 'User updated' : 'User created');
+    closeModal();
+    await loadUsers();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+loadUsers();
+</script>
+</body>
+</html>

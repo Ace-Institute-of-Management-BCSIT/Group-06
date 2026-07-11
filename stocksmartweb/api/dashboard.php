@@ -3,187 +3,213 @@
  * ============================================================================
  *  StockSmart — Dashboard API (api/dashboard.php)
  * ============================================================================
- *  GET api/dashboard.php
- *  Returns a single JSON object shaped exactly like the old SAMPLE_DATA
- *  object dashboard.html used to hold, so only the data layer changes —
- *  every render*() function in dashboard.html is untouched.
+ *  GET api/dashboard.php -> the exact shape dashboard.html's init() expects:
+ *    { stats, weeklySales[], recentSales[], lowStockProducts[], expiryAlerts[], activity[] }
  *
- *  Trend/percentage figures (the little up/down arrows on stat cards) have
- *  no historical baseline to compare against yet in a fresh install, so
- *  they are computed as 0% / 'up' rather than invented. Once the system
- *  has been running for a few weeks, these can be upgraded to real
- *  week-over-week comparisons using the same orders/stock_movements data.
+ *  Honesty notes:
+ *    - Most stat cards report trend/dir as neutral (0%, 'up') because the
+ *      schema has no historical snapshot table to compare against — see the
+ *      same note in api/inventory.php. "Today's Sales" is the one exception:
+ *      its trend is a REAL comparison against yesterday's completed orders,
+ *      since that only needs orders.order_date, which we already have.
+ *    - The seeded demo orders are dated around 2026-06-18 to 06-20. Once the
+ *      real checkout endpoint goes live and new orders start landing with
+ *      today's date, weeklySales/todaysSales will reflect that immediately —
+ *      there's nothing to "turn on" later, it's already querying live data.
  * ============================================================================
  */
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../db.php';
-require_once __DIR__ . '/../auth.php';   // returns 401 JSON if not logged in
+require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../helpers/notifications.php';
 
-header('Content-Type: application/json; charset=utf-8');
-
-try {
-    echo json_encode([
-        'stats'             => getStats($pdo),
-        'weeklySales'       => getWeeklySales($pdo),
-        'recentSales'       => getRecentSales($pdo),
-        'lowStockProducts'  => getLowStockProducts($pdo),
-        'expiryAlerts'      => getExpiryAlerts($pdo),
-        'activity'          => getActivity($pdo),
-    ]);
-} catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit;
 }
 
-/* ---------------------------------------------------------------------- */
+api_require_permission('dashboard.view');
+check_stock_alerts($pdo);
 
-function getStats(PDO $pdo): array
-{
-    $row = db_select($pdo, "
-        SELECT
-          (SELECT COUNT(*) FROM products WHERE status = 'active') AS total_products,
-          (SELECT COUNT(*) FROM vw_product_stock_summary WHERE stock_status = 'Low Stock') AS low_stock_count,
-          (SELECT COUNT(*) FROM vw_expiry_alerts WHERE days_left BETWEEN 0 AND 7) AS expiring_soon_count,
-          (SELECT COUNT(*) FROM suppliers WHERE status = 'active') AS total_suppliers,
-          (SELECT ROUND(COALESCE(SUM(grand_total),0),2) FROM orders
-             WHERE order_status='completed' AND DATE(order_date)=CURDATE()) AS todays_sales,
-          (SELECT COUNT(*) FROM vw_product_stock_summary WHERE stock_status = 'Out of Stock') AS restock_alerts
-    ")[0];
-
-    // Shape matches SAMPLE_DATA.stats: { key: {value, trend, dir} }
-    // trend/dir are placeholders (no historical baseline yet) — see file header.
-    $mk = fn($value) => ['value' => (float) $value, 'trend' => 0, 'dir' => 'up'];
-
-    return [
-        'totalProducts'  => $mk($row['total_products']),
-        'lowStock'       => $mk($row['low_stock_count']),
-        'expiringSoon'   => $mk($row['expiring_soon_count']),
-        'totalSuppliers' => $mk($row['total_suppliers']),
-        'todaysSales'    => $mk($row['todays_sales']),
-        'restockAlerts'  => $mk($row['restock_alerts']),
-    ];
-}
-
-function getWeeklySales(PDO $pdo): array
-{
-    // Last 7 days, oldest first, matching {day, thisWeek, lastWeek}.
-    $rows = db_select($pdo, "
-        SELECT DATE(order_date) AS sale_date, DAYNAME(order_date) AS day_name,
-               SUM(grand_total) AS day_total
-        FROM orders
-        WHERE order_status = 'completed'
-          AND order_date >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-        GROUP BY DATE(order_date), DAYNAME(order_date)
-        ORDER BY sale_date ASC
-    ");
-
-    $byDate = [];
-    foreach ($rows as $r) {
-        $byDate[$r['sale_date']] = (float) $r['day_total'];
-    }
-
-    $out = [];
-    for ($i = 6; $i >= 0; $i--) {
-        $date = date('Y-m-d', strtotime("-$i day"));
-        $out[] = [
-            'day'      => date('D', strtotime($date)),
-            'thisWeek' => $byDate[$date] ?? 0,
-            'lastWeek' => 0, // no prior-period data available yet on a fresh install
-        ];
-    }
-    return $out;
-}
-
-function getRecentSales(PDO $pdo): array
-{
-    // Grouped by category + date to match {category, qty, amount, date}.
-    $rows = db_select($pdo, "
-        SELECT c.category_name AS category,
-               SUM(oi.quantity) AS qty,
-               ROUND(SUM(oi.line_total),2) AS amount,
-               DATE(o.order_date) AS date
-        FROM order_items oi
-        JOIN orders o     ON o.order_id = oi.order_id
-        JOIN products p   ON p.product_id = oi.product_id
-        JOIN categories c ON c.category_id = p.category_id
-        WHERE o.order_status = 'completed'
-        GROUP BY c.category_name, DATE(o.order_date)
-        ORDER BY date DESC
-        LIMIT 10
-    ");
-    foreach ($rows as &$r) {
-        $r['qty'] = (float) $r['qty'];
-        $r['amount'] = (float) $r['amount'];
-    }
-    return $rows;
-}
-
-function getLowStockProducts(PDO $pdo): array
-{
-    // Matches {name, stock, reorder}.
-    $rows = db_select($pdo, "
-        SELECT product_name AS name, total_available AS stock, reorder_level AS `reorder`
-        FROM vw_product_stock_summary
-        WHERE stock_status = 'Low Stock'
-        ORDER BY total_available ASC
-        LIMIT 8
-    ");
-    foreach ($rows as &$r) {
-        $r['stock'] = (int) $r['stock'];
-        $r['reorder'] = (int) $r['reorder'];
-    }
-    return $rows;
-}
-
-function getExpiryAlerts(PDO $pdo): array
-{
-    // Matches {name, batch, stock, daysLeft}.
-    $rows = db_select($pdo, "
-        SELECT product_name AS name, batch_number AS batch, quantity AS stock, days_left AS daysLeft
-        FROM vw_expiry_alerts
-        WHERE days_left <= 14
-        ORDER BY days_left ASC
-        LIMIT 8
-    ");
-    foreach ($rows as &$r) {
-        $r['stock'] = (int) $r['stock'];
-        $r['daysLeft'] = (int) $r['daysLeft'];
-    }
-    return $rows;
-}
-
-function getActivity(PDO $pdo): array
-{
-    // Matches {type, text, time}. 'type' must be one of the keys the
-    // front-end's iconMap understands: add, update, checkout, alert.
-    $rows = db_select($pdo, "
-        SELECT activity_type, description, created_at
-        FROM activity_logs
-        ORDER BY created_at DESC
-        LIMIT 10
-    ");
-
-    $allowedTypes = ['add', 'update', 'checkout', 'alert'];
-    $out = [];
-    foreach ($rows as $r) {
-        $type = in_array($r['activity_type'], $allowedTypes, true) ? $r['activity_type'] : 'update';
-        $out[] = [
-            'type' => $type,
-            'text' => htmlspecialchars($r['description'], ENT_QUOTES, 'UTF-8'),
-            'time' => relativeTime($r['created_at']),
-        ];
-    }
-    return $out;
-}
-
-function relativeTime(string $datetime): string
+function time_ago_dash(string $datetime): string
 {
     $diff = time() - strtotime($datetime);
-    if ($diff < 60) return 'just now';
-    if ($diff < 3600) { $m = (int) floor($diff / 60); return "$m minute" . ($m === 1 ? '' : 's') . " ago"; }
-    if ($diff < 86400) { $h = (int) floor($diff / 3600); return "$h hour" . ($h === 1 ? '' : 's') . " ago"; }
-    $d = (int) floor($diff / 86400);
-    return "$d day" . ($d === 1 ? '' : 's') . " ago";
+    if ($diff < 60)     return 'Just now';
+    if ($diff < 3600)   return floor($diff / 60) . ' min ago';
+    if ($diff < 86400)  { $h = floor($diff / 3600); return $h . ' hour' . ($h == 1 ? '' : 's') . ' ago'; }
+    if ($diff < 172800) return 'Yesterday';
+    return floor($diff / 86400) . ' days ago';
 }
+
+function map_activity_type_dash(string $type): string
+{
+    switch ($type) {
+        case 'add':      return 'add';
+        case 'checkout': return 'checkout';
+        case 'alert':    return 'alert';
+        case 'update':
+        case 'delete':
+        case 'transfer':
+        default:         return 'update';
+    }
+}
+
+/* ---------- Counts / stats ---------- */
+$totalProducts = (int) $pdo->query("SELECT COUNT(*) c FROM products WHERE status != 'discontinued'")->fetch()['c'];
+
+$stockRow = $pdo->query("
+    SELECT
+        SUM(CASE WHEN available <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
+        SUM(CASE WHEN available > 0 AND available <= reorder_level THEN 1 ELSE 0 END) AS low_stock
+    FROM (
+        SELECT p.product_id, p.reorder_level,
+               COALESCE(SUM(i.quantity_on_hand),0) - COALESCE(SUM(i.quantity_reserved),0) AS available
+        FROM products p
+        LEFT JOIN inventory i ON i.product_id = p.product_id
+        WHERE p.status != 'discontinued'
+        GROUP BY p.product_id, p.reorder_level
+    ) t
+")->fetch();
+$lowStockCount    = (int) ($stockRow['low_stock'] ?? 0);
+$outOfStockCount  = (int) ($stockRow['out_of_stock'] ?? 0);
+
+$totalSuppliers = (int) $pdo->query("SELECT COUNT(*) c FROM suppliers WHERE status = 'active'")->fetch()['c'];
+
+$expiringSoonCount = (int) $pdo->query("
+    SELECT COUNT(*) c FROM product_batches
+    WHERE quantity > 0 AND DATEDIFF(expiry_date, CURDATE()) BETWEEN 0 AND 7
+")->fetch()['c'];
+
+$todaySales = (float) $pdo->query("
+    SELECT COALESCE(SUM(grand_total),0) v FROM orders
+    WHERE order_status = 'completed' AND DATE(order_date) = CURDATE()
+")->fetch()['v'];
+
+$yesterdaySales = (float) $pdo->query("
+    SELECT COALESCE(SUM(grand_total),0) v FROM orders
+    WHERE order_status = 'completed' AND DATE(order_date) = CURDATE() - INTERVAL 1 DAY
+")->fetch()['v'];
+
+$salesTrend = 0;
+$salesDir   = 'up';
+if ($yesterdaySales > 0) {
+    $salesTrend = round((($todaySales - $yesterdaySales) / $yesterdaySales) * 100);
+    $salesDir   = $salesTrend >= 0 ? 'up' : 'down';
+    $salesTrend = abs($salesTrend);
+} elseif ($todaySales > 0) {
+    $salesTrend = 100;
+    $salesDir   = 'up';
+}
+
+$neutral = ['trend' => 0, 'dir' => 'up'];
+
+$stats = [
+    'totalProducts'  => ['value' => $totalProducts]              + $neutral,
+    'lowStock'       => ['value' => $lowStockCount]               + $neutral,
+    'expiringSoon'   => ['value' => $expiringSoonCount]           + $neutral,
+    'totalSuppliers' => ['value' => $totalSuppliers]              + $neutral,
+    'todaysSales'    => ['value' => round($todaySales, 2), 'trend' => $salesTrend, 'dir' => $salesDir],
+    'restockAlerts'  => ['value' => $lowStockCount + $outOfStockCount] + $neutral,
+];
+
+/* ---------- Weekly sales chart (this week vs. same weekday last week) ---------- */
+$salesByDay = $pdo->query("
+    SELECT DATE(order_date) d, SUM(grand_total) total
+    FROM orders
+    WHERE order_status = 'completed' AND order_date >= (CURDATE() - INTERVAL 14 DAY)
+    GROUP BY DATE(order_date)
+")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+$weeklySales = [];
+for ($i = 6; $i >= 0; $i--) {
+    $thisDate = date('Y-m-d', strtotime("-{$i} days"));
+    $lastDate = date('Y-m-d', strtotime("-" . ($i + 7) . " days"));
+    $weeklySales[] = [
+        'day'      => date('D', strtotime($thisDate)),
+        'thisWeek' => (float) ($salesByDay[$thisDate] ?? 0),
+        'lastWeek' => (float) ($salesByDay[$lastDate] ?? 0),
+    ];
+}
+// Chart needs a non-zero max to render bar heights sensibly when there's no
+// sales data yet (e.g. a brand new install before any checkout has run).
+if (array_sum(array_column($weeklySales, 'thisWeek')) + array_sum(array_column($weeklySales, 'lastWeek')) === 0.0) {
+    $weeklySales[count($weeklySales) - 1]['thisWeek'] = 0.01;
+}
+
+/* ---------- Recent sales (latest completed order line items) ---------- */
+$recentRows = $pdo->query("
+    SELECT c.category_name, oi.quantity, oi.line_total, DATE(o.order_date) AS order_date
+    FROM order_items oi
+    JOIN orders o     ON o.order_id = oi.order_id
+    JOIN products p   ON p.product_id = oi.product_id
+    JOIN categories c ON c.category_id = p.category_id
+    WHERE o.order_status = 'completed'
+    ORDER BY o.order_date DESC
+    LIMIT 6
+")->fetchAll();
+$recentSales = array_map(fn($r) => [
+    'category' => $r['category_name'],
+    'qty'      => (float) $r['quantity'],
+    'amount'   => (float) $r['line_total'],
+    'date'     => $r['order_date'],
+], $recentRows);
+
+/* ---------- Low stock products (most critical first) ---------- */
+$lowStockRows = $pdo->query("
+    SELECT p.product_name,
+           COALESCE(SUM(i.quantity_on_hand),0) - COALESCE(SUM(i.quantity_reserved),0) AS available,
+           p.reorder_level
+    FROM products p
+    LEFT JOIN inventory i ON i.product_id = p.product_id
+    WHERE p.status != 'discontinued'
+    GROUP BY p.product_id, p.product_name, p.reorder_level
+    HAVING available > 0 AND available <= p.reorder_level
+    ORDER BY available ASC
+    LIMIT 5
+")->fetchAll();
+$lowStockProducts = array_map(fn($r) => [
+    'name'    => $r['product_name'],
+    'stock'   => (int) $r['available'],
+    'reorder' => (int) $r['reorder_level'],
+], $lowStockRows);
+
+/* ---------- Expiry alerts (soonest first) ---------- */
+$expiryRows = $pdo->query("
+    SELECT p.product_name, b.batch_number, b.quantity, DATEDIFF(b.expiry_date, CURDATE()) AS days_left
+    FROM product_batches b
+    JOIN products p ON p.product_id = b.product_id
+    WHERE b.quantity > 0 AND DATEDIFF(b.expiry_date, CURDATE()) BETWEEN -30 AND 14
+    ORDER BY days_left ASC
+    LIMIT 5
+")->fetchAll();
+$expiryAlerts = array_map(fn($r) => [
+    'name'     => $r['product_name'],
+    'batch'    => $r['batch_number'],
+    'stock'    => (int) $r['quantity'],
+    'daysLeft' => (int) $r['days_left'],
+], $expiryRows);
+
+/* ---------- Activity feed ---------- */
+$activityRows = $pdo->query("
+    SELECT activity_type, description, created_at
+    FROM activity_logs
+    WHERE activity_type IN ('add','update','delete','checkout','alert','transfer')
+    ORDER BY created_at DESC
+    LIMIT 6
+")->fetchAll();
+$activity = array_map(fn($a) => [
+    'type' => map_activity_type_dash($a['activity_type']),
+    'text' => $a['description'],
+    'time' => time_ago_dash($a['created_at']),
+], $activityRows);
+
+echo json_encode([
+    'stats'            => $stats,
+    'weeklySales'      => $weeklySales,
+    'recentSales'      => $recentSales,
+    'lowStockProducts' => $lowStockProducts,
+    'expiryAlerts'     => $expiryAlerts,
+    'activity'         => $activity,
+]);

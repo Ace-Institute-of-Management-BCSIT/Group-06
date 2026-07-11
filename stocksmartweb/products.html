@@ -4,37 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StockSmart — Products</title>
+<link rel="stylesheet" href="assets/css/app.css">
 <style>
-  :root{
-    --blue-900:#0b1530;
-    --blue-800:#11204a;
-    --blue-700:#16307a;
-    --blue-accent:#5b6ef5;
-    --accent-light:#8b97ff;
-    --accent-dim:#e8eaff;
-    --bg:#f5f6fb;
-    --card:#ffffff;
-    --border:#e8e9f3;
-    --text-900:#0f1226;
-    --text-600:#50546b;
-    --text-400:#9599ab;
-    --green:#169e63;
-    --green-bg:#e9f9f0;
-    --amber:#c9790f;
-    --amber-bg:#fdf3e3;
-    --red:#d8413f;
-    --red-bg:#fcecec;
-    --purple:#8454e8;
-    --purple-bg:#f2ecfd;
-    --radius-sm:8px;
-    --radius-md:12px;
-    --radius-lg:16px;
-    --shadow:0 1px 2px rgba(15,18,38,.05), 0 1px 3px rgba(15,18,38,.05);
-    --shadow-md:0 4px 16px rgba(15,18,38,.07), 0 1px 3px rgba(15,18,38,.04);
-    --ease:cubic-bezier(.22,1,.36,1);
-    font-synthesis:none;
-  }
-
+  
   *{box-sizing:border-box;}
   body{margin:0;}
 
@@ -505,107 +477,19 @@
     .stats{grid-template-columns:repeat(2,1fr);}
   }
 </style>
+<script src="assets/js/currency.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
 </head>
 <body>
 <div class="app">
 
   <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <a class="brand" href="index.html" aria-label="StockSmart home">
-      <span class="logo">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
-      </span>
-      <div>
-        <div class="brand-text">Stock<span>Smart</span></div>
-        <div class="brand-sub">INVENTORY OS</div>
-      </div>
-    </a>
-
-    <div class="nav-section" style="flex:1; overflow-y:auto;">
-      <div class="nav-label">MAIN</div>
-      <a class="nav-item" href="dashboard.html">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        Dashboard
-      </a>
-      <a class="nav-item active" href="products.html">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13V21"/></svg>
-        Products
-      </a>
-      <a class="nav-item" href="inventory.html">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z"/><path d="M9 13h6"/></svg>
-        Inventory
-      </a>
-      <a class="nav-item" href="checkout.php">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
-        Checkout
-      </a>
-      <!--
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-        Suppliers
-      </a>
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
-        Sales
-      </a>
-      -->
-
-      <div class="nav-label" style="margin-top:18px;">ALERTS</div>
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-        Restocking Alerts
-        <span class="nav-badge" style="background:var(--amber)">8</span>
-      </a>
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        Expiry Alerts
-        <span class="nav-badge">16</span>
-      </a>
-
-      <!--
-      <div class="nav-label" style="margin-top:18px;">ADMIN</div>
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
-        Reports
-      </a>
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Users
-      </a>
-      <a class="nav-item" href="#" onclick="return false;">
-        <svg class="ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </a>
-      -->
-    </div>
-
-    <div class="sidebar-footer">
-      <div class="avatar">AD</div>
-      <div class="who"><b>Admin User</b><span>Super Admin</span></div>
-    </div>
-  </aside>
+  <!--SIDEBAR-->
 
   <!-- MAIN -->
   <main class="main">
 
-    <div class="topbar">
-      <div>
-        <h1>Products</h1>
-        <div class="breadcrumb"><a href="dashboard.html">Dashboard</a> &nbsp;›&nbsp; Products</div>
-      </div>
-      <div class="top-actions">
-        <div class="top-search">
-          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
-          <input type="text" placeholder="Search products...">
-        </div>
-        <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="dot"></span></button>
-        <div class="user-chip">
-          <div class="avatar">AD</div>
-          <div class="who"><b>Admin User</b><span>Super Admin</span></div>
-          <span class="caret">▾</span>
-        </div>
-      </div>
-    </div>
+    <!--TOPBAR-->
 
     <!-- STAT CARDS -->
     <div class="stats">
@@ -630,7 +514,7 @@
         <div class="stat-label">Out of Stock Products</div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="stat-icon gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></div>
         <div class="stat-value" id="statValue">Rs. 0</div>
         <div class="stat-label">Total Inventory Value</div>
       </div>
@@ -651,8 +535,7 @@
         <option value="Low Stock">Low Stock</option>
         <option value="Out of Stock">Out of Stock</option>
       </select>
-      <button class="pill btn-filter" id="moreFiltersBtn">⚲ More Filters</button>
-      <button class="btn-add" id="addProductBtn">＋ Add Product</button>
+      <button class="btn-add" id="addProductBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Product</button>
     </div>
 
     <!-- TABLE -->
@@ -685,7 +568,7 @@
   <div class="modal">
     <div class="modal-head">
       <h3 id="modalTitle">Add Product</h3>
-      <button id="modalClose">✕</button>
+      <button id="modalClose"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="field">
@@ -701,6 +584,13 @@
           <label>SKU</label>
           <input type="text" id="fSku" placeholder="e.g. DAIRY-009">
         </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Barcode <span style="font-weight:400;color:var(--text-400);">(optional)</span></label>
+          <input type="text" id="fBarcode" placeholder="Scan or enter barcode">
+        </div>
+        <div class="field"></div>
       </div>
       <div class="field-row">
         <div class="field">
@@ -770,10 +660,6 @@ function statusPillClass(status){
   if(status === 'Out of Stock') return 'status-out';
   if(status === 'Low Stock') return 'status-low';
   return 'status-in';
-}
-
-function fmtRs(n){
-  return 'Rs. ' + Number(n).toLocaleString('en-IN');
 }
 
 function populateCategoryFilter(){
@@ -859,8 +745,8 @@ function renderTable(){
         <td><span class="status-pill ${statusPillClass(status)}">${status}</span></td>
         <td>
           <div class="row-actions">
-            <button class="edit-btn" title="Edit">✎</button>
-            <button class="menu-btn" title="More">⋮</button>
+            <button class="edit-btn" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+            <button class="menu-btn" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
           </div>
         </td>
       </tr>`;
@@ -899,6 +785,12 @@ function showToast(msg){
 
 const API_URL = 'api/products.php';
 
+// products.php (the page wrapper) injects window.STOCKSMART_USER, which now
+// includes a `csrf` field (see auth.php's auth_user()). Every POST/PUT/DELETE
+// must send it back via the X-CSRF-Token header or api/_bootstrap.php will
+// reject the request with a 419.
+const CSRF_TOKEN = (window.STOCKSMART_USER && window.STOCKSMART_USER.csrf) || '';
+
 async function loadProducts(){
   try{
     const res = await fetch(API_URL);
@@ -914,7 +806,7 @@ async function loadProducts(){
 async function createProduct(payload){
   const res = await fetch(API_URL, {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: {'Content-Type':'application/json', 'X-CSRF-Token': CSRF_TOKEN},
     body: JSON.stringify(payload)
   });
   const data = await res.json();
@@ -925,7 +817,7 @@ async function createProduct(payload){
 async function updateProduct(id, payload){
   const res = await fetch(`${API_URL}?id=${id}`, {
     method: 'PUT',
-    headers: {'Content-Type':'application/json'},
+    headers: {'Content-Type':'application/json', 'X-CSRF-Token': CSRF_TOKEN},
     body: JSON.stringify(payload)
   });
   const data = await res.json();
@@ -934,7 +826,10 @@ async function updateProduct(id, payload){
 }
 
 async function deleteProductRequest(id){
-  const res = await fetch(`${API_URL}?id=${id}`, { method: 'DELETE' });
+  const res = await fetch(`${API_URL}?id=${id}`, {
+    method: 'DELETE',
+    headers: {'X-CSRF-Token': CSRF_TOKEN}
+  });
   const data = await res.json();
   if(!res.ok) throw new Error(data.error || 'Failed to delete product');
   return data;
@@ -998,10 +893,6 @@ els.body.addEventListener('click', async e=>{
   }
 });
 
-document.getElementById('moreFiltersBtn').addEventListener('click', ()=>{
-  showToast('More filters coming soon');
-});
-
 /* ---------- MODAL ---------- */
 
 const overlay = els.overlay;
@@ -1013,11 +904,12 @@ function openModal(id=null){
     document.getElementById('fName').value = p.name;
     document.getElementById('fCategory').value = p.category;
     document.getElementById('fSku').value = p.sku;
+    document.getElementById('fBarcode').value = p.barcode || '';
     document.getElementById('fStock').value = p.stock;
     document.getElementById('fPrice').value = p.price;
   } else {
     els.modalTitle.textContent = 'Add Product';
-    ['fName','fCategory','fSku','fStock','fPrice'].forEach(id=>document.getElementById(id).value='');
+    ['fName','fCategory','fSku','fBarcode','fStock','fPrice'].forEach(id=>document.getElementById(id).value='');
   }
   overlay.classList.add('open');
 }
@@ -1032,6 +924,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('fName').value.trim();
   const category = document.getElementById('fCategory').value.trim();
   const sku = document.getElementById('fSku').value.trim();
+  const barcode = document.getElementById('fBarcode').value.trim();
   const stock = Number(document.getElementById('fStock').value) || 0;
   const price = Number(document.getElementById('fPrice').value) || 0;
 
@@ -1040,7 +933,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     return;
   }
 
-  const payload = {name, category, sku, stock, price};
+  const payload = {name, category, sku, barcode, stock, price};
 
   try{
     if(editingId){
@@ -1060,6 +953,31 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape') closeModal();
 });
+
+/* Account/profile chip and the notification bell are now handled centrally
+   by assets/js/nav-guard.js (fillUserChip/fillProfileCard/initNotifBell)
+   against the shared topbar and sidebar markup every page renders. */
+
+/* ---------- Topbar search: mirrors the real filter input, supports ?search= deep links ---------- */
+(function initTopSearch(){
+  const topSearch = document.getElementById('topSearchInput');
+  const realSearch = els.search; // the toolbar's #searchInput, already wired to renderTable()
+
+  topSearch.addEventListener('input', () => {
+    realSearch.value = topSearch.value;
+    currentPage = 1;
+    renderTable();
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const q = params.get('search');
+  if (q) {
+    topSearch.value = q;
+    realSearch.value = q;
+    currentPage = 1;
+    renderTable();
+  }
+})();
 
 /* ---------- INIT ---------- */
 refreshFromServer();
