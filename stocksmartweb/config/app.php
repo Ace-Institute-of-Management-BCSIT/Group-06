@@ -1,4 +1,9 @@
 <?php
+$local = __DIR__ . '/dblocal.php';
+
+if (file_exists($local)) {
+    require_once $local;
+}
 /** Application configuration. Environment variables override XAMPP defaults. */
 declare(strict_types=1);
 
