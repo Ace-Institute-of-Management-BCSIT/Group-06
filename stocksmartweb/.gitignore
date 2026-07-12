@@ -1,4 +1,0 @@
-/vendor/
-/logs/*.log
-.DS_Store
-stocksmartweb/config/dblocal.php
