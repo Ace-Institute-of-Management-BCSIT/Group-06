@@ -1,16 +1,34 @@
 -- ============================================================================
 --  STOCKSMART — INTELLIGENT INVENTORY MANAGEMENT SYSTEM
---  Production-Ready MySQL 8 Database Schema  (AUTH-UPDATED)
+--  Production-Ready MySQL 8 / MariaDB Schema — refreshed 2026-07-13
 -- ============================================================================
---  Changes from original:
---    - Password hashes replaced with valid bcrypt hashes (generated via
---      password_hash(..., PASSWORD_DEFAULT) compatible $2y$ format).
---    - Old hashes were structurally invalid (fabricated strings that fail
---      password_verify() — the bcrypt cost/salt sections were nonsense).
---    - All other schema and seed data is unchanged.
+--  This is a full re-export of the live development database, replacing the
+--  outdated schema from June. It now includes everything the current
+--  codebase depends on that the old file didn't:
+--    - RBAC: permissions, role_permissions, plus 3 new roles (Super Admin,
+--      Inventory Staff, Viewer) — see database/production_upgrade.sql
+--    - user_sessions, password_reset_tokens, system_settings, notifications
+--    - purchase_orders / purchase_order_items (Purchases module)
+--    - returns / return_items, and orders.order_status now includes
+--      'partially_refunded' — see database/migrations/002_sales.sql
+--    - products.barcode (POS barcode search) — migrations/003_checkout.sql
+--    - users: failed_login_attempts / locked_until (login lockout) and
+--      email_verified_at — migrations/001_auth_security.sql. The OTP columns
+--      that same migration added (otp_code/otp_expires_at) are gone again —
+--      registration no longer requires email verification, see
+--      migrations/004_remove_otp_verification.sql.
+--  database/production_upgrade.sql and database/migrations/*.sql are now
+--  fully folded into this file; a fresh install only needs this one file.
+--  They're kept for history/reference — see database/README.md.
+--
+--  Seed data: user accounts are reset to the original 5 curated demo
+--  accounts (password hashes below); real local test data (extra accounts
+--  created via the registration form, accumulated activity-log noise, etc.)
+--  is intentionally not included.
 --
 --  HOW TO IMPORT:
 --    phpMyAdmin -> Import -> choose this file -> Go.
+--    CLI: mysql -u root < stocksmart.sql
 -- ============================================================================
 
 SET NAMES utf8mb4;
@@ -26,8 +44,10 @@ CREATE DATABASE stocksmart
 USE stocksmart;
 
 -- ============================================================================
--- 1. TABLE: roles
+-- SECTION 1: SCHEMA
 -- ============================================================================
+
+-- 1. roles
 CREATE TABLE roles (
     role_id          TINYINT UNSIGNED   NOT NULL AUTO_INCREMENT,
     role_name        VARCHAR(30)        NOT NULL,
@@ -36,35 +56,34 @@ CREATE TABLE roles (
     UNIQUE KEY uq_roles_role_name (role_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 2. TABLE: users
--- ============================================================================
+-- 2. users
 CREATE TABLE users (
-    user_id        INT UNSIGNED        NOT NULL AUTO_INCREMENT,
-    full_name      VARCHAR(100)        NOT NULL,
-    username       VARCHAR(50)         NOT NULL,
-    email          VARCHAR(120)        NOT NULL,
-    password_hash  VARCHAR(255)        NOT NULL COMMENT 'bcrypt / password_hash() output',
-    role_id        TINYINT UNSIGNED    NOT NULL,
-    phone          VARCHAR(20)         NULL,
-    avatar_emoji   VARCHAR(10)         NULL DEFAULT '🧑',
-    status         ENUM('active','inactive','suspended') NOT NULL DEFAULT 'active',
-    last_login_at  DATETIME            NULL,
-    created_at     TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at     TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                        ON UPDATE CURRENT_TIMESTAMP,
+    user_id                INT UNSIGNED        NOT NULL AUTO_INCREMENT,
+    full_name              VARCHAR(100)        NOT NULL,
+    username               VARCHAR(50)         NOT NULL,
+    email                  VARCHAR(120)        NOT NULL,
+    password_hash          VARCHAR(255)        NOT NULL COMMENT 'bcrypt / password_hash() output',
+    role_id                TINYINT UNSIGNED    NOT NULL,
+    phone                  VARCHAR(20)         NULL,
+    avatar_emoji           VARCHAR(10)         NULL DEFAULT '🧑',
+    status                 ENUM('active','inactive','suspended','pending') NOT NULL DEFAULT 'active',
+    failed_login_attempts  TINYINT UNSIGNED    NOT NULL DEFAULT 0,
+    locked_until           DATETIME            NULL,
+    email_verified_at      DATETIME            NULL,
+    last_login_at          DATETIME            NULL,
+    created_at             TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             TIMESTAMP           NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                                ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id),
     UNIQUE KEY uq_users_username (username),
     UNIQUE KEY uq_users_email (email),
     KEY idx_users_role (role_id),
     CONSTRAINT fk_users_role
         FOREIGN KEY (role_id) REFERENCES roles(role_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 3. TABLE: categories
--- ============================================================================
+-- 3. categories
 CREATE TABLE categories (
     category_id    SMALLINT UNSIGNED   NOT NULL AUTO_INCREMENT,
     category_name  VARCHAR(60)         NOT NULL,
@@ -74,9 +93,7 @@ CREATE TABLE categories (
     UNIQUE KEY uq_categories_name (category_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 4. TABLE: suppliers
--- ============================================================================
+-- 4. suppliers
 CREATE TABLE suppliers (
     supplier_id    INT UNSIGNED        NOT NULL AUTO_INCREMENT,
     supplier_name  VARCHAR(120)        NOT NULL,
@@ -89,9 +106,7 @@ CREATE TABLE suppliers (
     PRIMARY KEY (supplier_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 5. TABLE: warehouses
--- ============================================================================
+-- 5. warehouses
 CREATE TABLE warehouses (
     warehouse_id   SMALLINT UNSIGNED   NOT NULL AUTO_INCREMENT,
     warehouse_name VARCHAR(80)         NOT NULL,
@@ -104,13 +119,12 @@ CREATE TABLE warehouses (
     UNIQUE KEY uq_warehouses_name (warehouse_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 6. TABLE: products
--- ============================================================================
+-- 6. products
 CREATE TABLE products (
     product_id     INT UNSIGNED        NOT NULL AUTO_INCREMENT,
     product_name   VARCHAR(150)        NOT NULL,
     sku            VARCHAR(40)         NOT NULL,
+    barcode        VARCHAR(64)         NULL,
     category_id    SMALLINT UNSIGNED   NOT NULL,
     supplier_id    INT UNSIGNED        NULL,
     icon_emoji     VARCHAR(10)         NULL DEFAULT '📦',
@@ -127,13 +141,14 @@ CREATE TABLE products (
                                         ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (product_id),
     UNIQUE KEY uq_products_sku (sku),
+    UNIQUE KEY uq_products_barcode (barcode),
     KEY idx_products_category (category_id),
     KEY idx_products_supplier (supplier_id),
     KEY idx_products_status (status),
     KEY idx_products_name (product_name),
     CONSTRAINT fk_products_category
         FOREIGN KEY (category_id) REFERENCES categories(category_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT fk_products_supplier
         FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
@@ -145,9 +160,7 @@ CREATE TABLE products (
     CONSTRAINT chk_products_reorder_nonneg CHECK (reorder_level >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 7. TABLE: inventory
--- ============================================================================
+-- 7. inventory
 CREATE TABLE inventory (
     inventory_id     INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     product_id       INT UNSIGNED      NOT NULL,
@@ -168,13 +181,11 @@ CREATE TABLE inventory (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_inventory_warehouse
         FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT chk_inventory_reserved_le_onhand CHECK (quantity_reserved <= quantity_on_hand)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 8. TABLE: product_batches
--- ============================================================================
+-- 8. product_batches
 CREATE TABLE product_batches (
     batch_id        INT UNSIGNED       NOT NULL AUTO_INCREMENT,
     product_id      INT UNSIGNED       NOT NULL,
@@ -194,12 +205,10 @@ CREATE TABLE product_batches (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_batches_warehouse
         FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 9. TABLE: customers
--- ============================================================================
+-- 9. customers
 CREATE TABLE customers (
     customer_id    INT UNSIGNED        NOT NULL AUTO_INCREMENT,
     customer_name  VARCHAR(100)        NOT NULL DEFAULT 'Walk-in Customer',
@@ -210,9 +219,7 @@ CREATE TABLE customers (
     PRIMARY KEY (customer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 10. TABLE: orders
--- ============================================================================
+-- 10. orders
 CREATE TABLE orders (
     order_id         INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     order_number     VARCHAR(30)       NOT NULL,
@@ -226,7 +233,7 @@ CREATE TABLE orders (
     grand_total      DECIMAL(12,2)     NOT NULL DEFAULT 0.00,
     payment_method   ENUM('cash','card','mobile_wallet','bank_transfer','other')
                                        NOT NULL DEFAULT 'cash',
-    order_status     ENUM('completed','pending','refunded','cancelled')
+    order_status     ENUM('completed','pending','refunded','partially_refunded','cancelled')
                                        NOT NULL DEFAULT 'completed',
     order_date       TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (order_id),
@@ -241,16 +248,14 @@ CREATE TABLE orders (
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT fk_orders_cashier
         FOREIGN KEY (cashier_id) REFERENCES users(user_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT fk_orders_warehouse
         FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT chk_orders_grand_total_nonneg CHECK (grand_total >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 11. TABLE: order_items
--- ============================================================================
+-- 11. order_items
 CREATE TABLE order_items (
     order_item_id   INT UNSIGNED       NOT NULL AUTO_INCREMENT,
     order_id        INT UNSIGNED       NOT NULL,
@@ -270,16 +275,14 @@ CREATE TABLE order_items (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_order_items_product
         FOREIGN KEY (product_id) REFERENCES products(product_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT fk_order_items_batch
         FOREIGN KEY (batch_id) REFERENCES product_batches(batch_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT chk_order_items_qty_positive CHECK (quantity > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 12. TABLE: stock_movements
--- ============================================================================
+-- 12. stock_movements
 CREATE TABLE stock_movements (
     movement_id     BIGINT UNSIGNED    NOT NULL AUTO_INCREMENT,
     product_id      INT UNSIGNED       NOT NULL,
@@ -303,15 +306,13 @@ CREATE TABLE stock_movements (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_movements_warehouse
         FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT fk_movements_user
         FOREIGN KEY (performed_by) REFERENCES users(user_id)
         ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 13. TABLE: stock_transfers
--- ============================================================================
+-- 13. stock_transfers
 CREATE TABLE stock_transfers (
     transfer_id      INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     product_id        INT UNSIGNED     NOT NULL,
@@ -331,10 +332,10 @@ CREATE TABLE stock_transfers (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_transfers_from_wh
         FOREIGN KEY (from_warehouse_id) REFERENCES warehouses(warehouse_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT fk_transfers_to_wh
         FOREIGN KEY (to_warehouse_id) REFERENCES warehouses(warehouse_id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
+        ON UPDATE CASCADE,
     CONSTRAINT fk_transfers_requested_by
         FOREIGN KEY (requested_by) REFERENCES users(user_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
@@ -363,9 +364,7 @@ BEGIN
 END$$
 DELIMITER ;
 
--- ============================================================================
--- 14. TABLE: alerts
--- ============================================================================
+-- 14. alerts
 CREATE TABLE alerts (
     alert_id        INT UNSIGNED       NOT NULL AUTO_INCREMENT,
     alert_type      ENUM('low_stock','out_of_stock','expiry') NOT NULL,
@@ -396,13 +395,11 @@ CREATE TABLE alerts (
         ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- 15. TABLE: activity_logs
--- ============================================================================
+-- 15. activity_logs
 CREATE TABLE activity_logs (
     log_id          BIGINT UNSIGNED    NOT NULL AUTO_INCREMENT,
     user_id         INT UNSIGNED       NULL,
-    activity_type   ENUM('add','update','delete','checkout','alert','transfer','login','logout')
+    activity_type   ENUM('add','update','delete','checkout','alert','transfer','login','logout','security')
                                        NOT NULL,
     entity_type     VARCHAR(40)        NULL,
     entity_id       INT UNSIGNED       NULL,
@@ -418,20 +415,196 @@ CREATE TABLE activity_logs (
         ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 16. permissions (RBAC catalog — database/production_upgrade.sql)
+CREATE TABLE permissions (
+    permission_id   SMALLINT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    permission_key  VARCHAR(80)        NOT NULL,
+    permission_name VARCHAR(120)       NOT NULL,
+    module_name     VARCHAR(50)        NOT NULL,
+    PRIMARY KEY (permission_id),
+    UNIQUE KEY uq_permissions_key (permission_key),
+    KEY idx_permissions_module (module_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 17. role_permissions (RBAC mapping)
+CREATE TABLE role_permissions (
+    role_id       TINYINT UNSIGNED   NOT NULL,
+    permission_id SMALLINT UNSIGNED  NOT NULL,
+    PRIMARY KEY (role_id, permission_id),
+    CONSTRAINT fk_role_permissions_role
+        FOREIGN KEY (role_id) REFERENCES roles(role_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_role_permissions_permission
+        FOREIGN KEY (permission_id) REFERENCES permissions(permission_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 18. system_settings
+CREATE TABLE system_settings (
+    setting_key   VARCHAR(80)  NOT NULL,
+    setting_value TEXT         NULL,
+    updated_by    INT UNSIGNED NULL,
+    updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (setting_key),
+    CONSTRAINT fk_settings_user
+        FOREIGN KEY (updated_by) REFERENCES users(user_id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 19. notifications
+CREATE TABLE notifications (
+    notification_id   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id            INT UNSIGNED   NULL,
+    notification_type  VARCHAR(40)    NOT NULL,
+    title               VARCHAR(150)  NOT NULL,
+    message             VARCHAR(500)  NOT NULL,
+    entity_type         VARCHAR(40)   NULL,
+    entity_id           INT UNSIGNED  NULL,
+    read_at             DATETIME      NULL,
+    created_at          TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (notification_id),
+    KEY idx_notifications_user_read (user_id, read_at),
+    KEY idx_notifications_created (created_at),
+    CONSTRAINT fk_notifications_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 20. password_reset_tokens
+CREATE TABLE password_reset_tokens (
+    token_id    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id     INT UNSIGNED    NOT NULL,
+    token_hash  CHAR(64)        NOT NULL,
+    expires_at  DATETIME        NOT NULL,
+    used_at     DATETIME        NULL,
+    created_at  TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (token_id),
+    UNIQUE KEY uq_reset_token_hash (token_hash),
+    KEY idx_reset_user (user_id),
+    CONSTRAINT fk_reset_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 21. user_sessions (session inventory — see db.php)
+CREATE TABLE user_sessions (
+    session_id    VARCHAR(128) NOT NULL,
+    user_id       INT UNSIGNED NOT NULL,
+    ip_address    VARCHAR(45)  NULL,
+    user_agent    VARCHAR(255) NULL,
+    last_seen_at  DATETIME     NOT NULL,
+    expires_at    DATETIME     NOT NULL,
+    created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (session_id),
+    KEY idx_user_sessions_user (user_id),
+    KEY idx_user_sessions_expires (expires_at),
+    CONSTRAINT fk_user_sessions_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 22. purchase_orders
+CREATE TABLE purchase_orders (
+    purchase_order_id INT UNSIGNED   NOT NULL AUTO_INCREMENT,
+    po_number          VARCHAR(30)   NOT NULL,
+    supplier_id        INT UNSIGNED  NOT NULL,
+    warehouse_id       SMALLINT UNSIGNED NOT NULL,
+    status             ENUM('draft','ordered','partial','received','cancelled') NOT NULL DEFAULT 'draft',
+    subtotal           DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    tax_amount         DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    discount_amount    DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    grand_total        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    due_date           DATE          NULL,
+    notes              VARCHAR(500)  NULL,
+    created_by         INT UNSIGNED  NULL,
+    ordered_at         DATETIME      NULL,
+    received_at        DATETIME      NULL,
+    created_at         TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (purchase_order_id),
+    UNIQUE KEY uq_purchase_orders_number (po_number),
+    KEY idx_purchase_supplier_status (supplier_id, status),
+    CONSTRAINT fk_purchase_supplier
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id),
+    CONSTRAINT fk_purchase_warehouse
+        FOREIGN KEY (warehouse_id) REFERENCES warehouses(warehouse_id),
+    CONSTRAINT fk_purchase_creator
+        FOREIGN KEY (created_by) REFERENCES users(user_id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 23. purchase_order_items
+CREATE TABLE purchase_order_items (
+    purchase_order_item_id INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    purchase_order_id       INT UNSIGNED NOT NULL,
+    product_id               INT UNSIGNED NOT NULL,
+    ordered_quantity          DECIMAL(10,2) NOT NULL,
+    received_quantity         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    unit_cost                 DECIMAL(12,2) NOT NULL,
+    tax_rate                  DECIMAL(5,2)  NOT NULL DEFAULT 0.00,
+    PRIMARY KEY (purchase_order_item_id),
+    UNIQUE KEY uq_po_item_product (purchase_order_id, product_id),
+    CONSTRAINT fk_purchase_item_order
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(purchase_order_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_item_product
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 24. returns
+CREATE TABLE returns (
+    return_id      INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    order_id       INT UNSIGNED  NOT NULL,
+    processed_by   INT UNSIGNED  NULL,
+    reason         VARCHAR(255)  NULL,
+    refund_amount  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    created_at     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (return_id),
+    KEY idx_returns_order (order_id),
+    CONSTRAINT fk_returns_order
+        FOREIGN KEY (order_id) REFERENCES orders(order_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_returns_user
+        FOREIGN KEY (processed_by) REFERENCES users(user_id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 25. return_items
+CREATE TABLE return_items (
+    return_item_id INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+    return_id      INT UNSIGNED  NOT NULL,
+    order_item_id  INT UNSIGNED  NOT NULL,
+    product_id     INT UNSIGNED  NOT NULL,
+    quantity       DECIMAL(10,2) NOT NULL,
+    unit_price     DECIMAL(12,2) NOT NULL,
+    line_refund    DECIMAL(12,2) NOT NULL,
+    PRIMARY KEY (return_item_id),
+    KEY idx_return_items_return (return_id),
+    CONSTRAINT fk_return_items_return
+        FOREIGN KEY (return_id) REFERENCES returns(return_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_return_items_order_item
+        FOREIGN KEY (order_item_id) REFERENCES order_items(order_item_id),
+    CONSTRAINT fk_return_items_product
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================================
--- SECTION 2: SAMPLE DATA
+-- SECTION 2: SEED DATA
 -- ============================================================================
 
--- 2.1 roles
+-- 2.1 roles (includes the 3 RBAC roles added by production_upgrade.sql)
 INSERT INTO roles (role_id, role_name, role_description) VALUES
-(1, 'Admin',   'Full system access: manage users, products, inventory, settings'),
-(2, 'Manager', 'Manage products, inventory, view reports, approve transfers'),
-(3, 'Staff',   'Manage inventory counts and stock movements'),
-(4, 'Cashier', 'Process checkout / sales transactions only');
+(1, 'Admin',           'Full system access: manage users, products, inventory, settings'),
+(2, 'Manager',         'Manage products, inventory, view reports, approve transfers'),
+(3, 'Staff',           'Manage inventory counts and stock movements'),
+(4, 'Cashier',         'Process checkout / sales transactions only'),
+(5, 'Super Admin',     'Unrestricted system administration'),
+(6, 'Inventory Staff', 'Inventory, purchasing and warehouse operations'),
+(7, 'Viewer',          'Read-only business visibility');
 
--- 2.2 users
+-- 2.2 users — original 5 curated demo accounts only.
 -- ============================================================================
 -- VALID BCRYPT HASHES — generated with password_hash(..., PASSWORD_DEFAULT)
 -- These are real $2y$10$ bcrypt hashes that pass password_verify():
@@ -441,12 +614,12 @@ INSERT INTO roles (role_id, role_name, role_description) VALUES
 --   bibek.cash   → Cashier@123
 --   manisha.cash → Cashier@123
 -- ============================================================================
-INSERT INTO users (user_id, full_name, username, email, password_hash, role_id, phone, avatar_emoji, status, last_login_at) VALUES
-(1, 'Annie Shrestha',   'annie.admin',  'annie@stocksmart.com',   '$2y$10$O5eIoi8XCXcThzhJI0.nleTMIDKI4UK5DMj5kgKiHT5PsaEgPgfni', 1, '+977-9800000001', '👩‍💼', 'active',   '2026-06-21 08:15:00'),
-(2, 'Rajesh Karki',     'rajesh.mgr',   'rajesh@stocksmart.com',  '$2y$10$zrXlYAmJXYrXCLPB4Pc/rON.6ok5XVi29YN77eX8XYe1YpqxK9GTO', 2, '+977-9800000002', '🧑‍💼', 'active',   '2026-06-20 17:40:00'),
-(3, 'Sita Gurung',      'sita.staff',   'sita@stocksmart.com',    '$2y$10$8yZTNIrYeHor64RnwjYYuOXAHgnnUeUSHBdlilPCeX9fy8S1ekkY.', 3, '+977-9800000003', '👷‍♀️', 'active',   '2026-06-20 12:05:00'),
-(4, 'Bibek Thapa',      'bibek.cash',   'bibek@stocksmart.com',   '$2y$10$hswxzVCcFhVY0LpPpdia3ugIapdaSK2Wf8/71oyfcM./NvyB1atqa', 4, '+977-9800000004', '🧑‍💻', 'active',   '2026-06-21 09:02:00'),
-(5, 'Manisha Rai',      'manisha.cash', 'manisha@stocksmart.com', '$2y$10$NRN6bBcOKLarRqrSbFVKfuU604lkJAjdqJMLbqzyashwBqlzDlSDC', 4, '+977-9800000005', '🧑‍💻', 'inactive', '2026-06-10 10:00:00');
+INSERT INTO users (user_id, full_name, username, email, password_hash, role_id, phone, avatar_emoji, status, email_verified_at, last_login_at) VALUES
+(1, 'Annie Shrestha',   'annie.admin',  'annie@stocksmart.com',   '$2y$10$O5eIoi8XCXcThzhJI0.nleTMIDKI4UK5DMj5kgKiHT5PsaEgPgfni', 1, '+977-9800000001', '👩‍💼', 'active',   '2026-06-21 08:15:00', '2026-06-21 08:15:00'),
+(2, 'Rajesh Karki',     'rajesh.mgr',   'rajesh@stocksmart.com',  '$2y$10$zrXlYAmJXYrXCLPB4Pc/rON.6ok5XVi29YN77eX8XYe1YpqxK9GTO', 2, '+977-9800000002', '🧑‍💼', 'active',   '2026-06-20 17:40:00', '2026-06-20 17:40:00'),
+(3, 'Sita Gurung',      'sita.staff',   'sita@stocksmart.com',    '$2y$10$8yZTNIrYeHor64RnwjYYuOXAHgnnUeUSHBdlilPCeX9fy8S1ekkY.', 3, '+977-9800000003', '👷‍♀️', 'active',   '2026-06-20 12:05:00', '2026-06-20 12:05:00'),
+(4, 'Bibek Thapa',      'bibek.cash',   'bibek@stocksmart.com',   '$2y$10$hswxzVCcFhVY0LpPpdia3ugIapdaSK2Wf8/71oyfcM./NvyB1atqa', 4, '+977-9800000004', '🧑‍💻', 'active',   '2026-06-21 09:02:00', '2026-06-21 09:02:00'),
+(5, 'Manisha Rai',      'manisha.cash', 'manisha@stocksmart.com', '$2y$10$NRN6bBcOKLarRqrSbFVKfuU604lkJAjdqJMLbqzyashwBqlzDlSDC', 4, '+977-9800000005', '🧑‍💻', 'inactive', NULL,                  '2026-06-10 10:00:00');
 
 -- 2.3 categories
 INSERT INTO categories (category_id, category_name, description) VALUES
@@ -615,6 +788,50 @@ INSERT INTO activity_logs (user_id, activity_type, entity_type, entity_id, descr
 (2, 'update',   'products',        16, 'Reorder level adjusted for AA Batteries (4pk)',        '2026-06-18 06:00:00'),
 (2, 'transfer', 'stock_transfers',  1, '40 units of Organic Basmati Rice 5kg transferred from Warehouse A to Store Front', '2026-06-19 10:00:00'),
 (1, 'login',    'users',            1, 'Annie Shrestha logged in',                             '2026-06-21 08:15:00');
+
+-- 2.16 permissions (RBAC catalog)
+INSERT INTO permissions (permission_id, permission_key, permission_name, module_name) VALUES
+(1,  'dashboard.view',      'View dashboard',              'dashboard'),
+(2,  'products.view',       'View products',                'products'),
+(3,  'products.manage',     'Manage products',              'products'),
+(4,  'inventory.view',      'View inventory',               'inventory'),
+(5,  'inventory.manage',    'Manage inventory',             'inventory'),
+(6,  'checkout.use',        'Use checkout',                 'checkout'),
+(7,  'sales.view',          'View sales',                   'sales'),
+(8,  'sales.manage',        'Manage sales and refunds',     'sales'),
+(9,  'purchases.view',      'View purchases',               'purchases'),
+(10, 'purchases.manage',    'Manage purchase orders',       'purchases'),
+(11, 'suppliers.view',      'View suppliers',               'suppliers'),
+(12, 'suppliers.manage',    'Manage suppliers',             'suppliers'),
+(13, 'customers.view',      'View customers',               'customers'),
+(14, 'customers.manage',    'Manage customers',             'customers'),
+(15, 'reports.view',        'View reports',                 'reports'),
+(16, 'alerts.view',         'View alerts',                  'alerts'),
+(17, 'notifications.view',  'View notifications',           'notifications'),
+(18, 'users.manage',        'Manage users',                 'users'),
+(19, 'roles.manage',        'Manage roles and permissions', 'roles'),
+(20, 'settings.manage',     'Manage settings',              'settings'),
+(21, 'logs.view',           'View audit logs',              'logs');
+
+-- 2.17 role_permissions (RBAC mapping — 1 Admin, 2 Manager, 3 Staff, 4 Cashier,
+-- 5 Super Admin, 6 Inventory Staff, 7 Viewer)
+INSERT INTO role_permissions (role_id, permission_id) VALUES
+(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),(1,9),(1,10),(1,11),(1,12),(1,13),(1,14),(1,15),(1,16),(1,17),(1,18),(1,19),(1,20),(1,21),
+(2,1),(2,2),(2,3),(2,4),(2,5),(2,7),(2,9),(2,10),(2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),
+(3,1),(3,2),(3,4),(3,5),(3,9),(3,10),(3,11),(3,16),(3,17),
+(4,1),(4,2),(4,4),(4,6),(4,7),(4,13),(4,14),(4,17),
+(5,1),(5,2),(5,3),(5,4),(5,5),(5,6),(5,7),(5,8),(5,9),(5,10),(5,11),(5,12),(5,13),(5,14),(5,15),(5,16),(5,17),(5,18),(5,19),(5,20),(5,21),
+(6,1),(6,2),(6,4),(6,5),(6,9),(6,10),(6,11),(6,16),(6,17),
+(7,1),(7,2),(7,4),(7,7),(7,9),(7,11),(7,13),(7,15),(7,16),(7,17);
+
+-- 2.18 system_settings
+INSERT INTO system_settings (setting_key, setting_value, updated_by, updated_at) VALUES
+('company_name',     'StockSmart',                    NULL, CURRENT_TIMESTAMP),
+('currency',         'NPR',                            NULL, CURRENT_TIMESTAMP),
+('default_tax_rate', '0',                              NULL, CURRENT_TIMESTAMP),
+('invoice_prefix',   'INV-',                           NULL, CURRENT_TIMESTAMP),
+('receipt_footer',   'Thank you for your business.',   NULL, CURRENT_TIMESTAMP),
+('timezone',         'Asia/Kathmandu',                 NULL, CURRENT_TIMESTAMP);
 
 -- ============================================================================
 -- SECTION 3: HELPER VIEWS
