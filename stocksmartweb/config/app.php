@@ -1,6 +1,13 @@
 <?php
-/** Application configuration. Environment variables override XAMPP defaults. */
 declare(strict_types=1);
+
+/** Application configuration. Environment variables override XAMPP defaults. */
+
+$local = __DIR__ . '/dblocal.php';
+
+if (file_exists($local)) {
+    require_once $local;
+}
 
 /**
  * Loads KEY=VALUE pairs from a .env file into getenv()/$_ENV, without
