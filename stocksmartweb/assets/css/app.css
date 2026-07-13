@@ -41,6 +41,17 @@
   --ice:var(--accent-dim);
   --line:var(--border);
   --text-700:var(--text-600);
+  /* checkout.html's receipt panel is written against this shorter name set
+     (was never defined here, so every var(--navy)/var(--white)/etc. fell
+     back to its property's initial value — a transparent panel with
+     invisible light-on-nothing text, not an intentional disabled/faded
+     state). */
+  --navy:var(--navy-900);
+  --white:var(--card);
+  --highlight:var(--accent-light);
+  --dark-text:var(--text-900);
+  --grey-text:var(--text-600);
+  --radius:var(--radius-md);
 
   /* ---- Scale ---- */
   --sidebar-w:264px;

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StockSmart — Checkout / POS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/app.css">
 <style>
     *{box-sizing:border-box;margin:0;padding:0;}
@@ -525,13 +527,6 @@
   modalOverlay.addEventListener('click', e => {
     if (e.target === modalOverlay && !modalBox.querySelector('.spinner')) closeModal();
   });
-
-  if (window.STOCKSMART_USER) {
-    document.getElementById('sidebarAvatar').textContent = window.STOCKSMART_USER.avatar || 'US';
-    document.getElementById('sidebarName').textContent = window.STOCKSMART_USER.name || 'User';
-    document.getElementById('sidebarRole').textContent = window.STOCKSMART_USER.role || '';
-    document.getElementById('sidebarProfile').addEventListener('click', () => { window.location.href = 'profile.php'; });
-  }
 
   loadSettings();
   loadCart();
