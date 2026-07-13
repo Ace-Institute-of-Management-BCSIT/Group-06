@@ -100,12 +100,6 @@ if (!$user || !$valid) {
     exit;
 }
 
-if ($user['status'] === 'pending') {
-    http_response_code(403);
-    echo json_encode(['error' => 'Please verify your email address before logging in.', 'needs_verification' => true, 'user_id' => (int) $user['user_id']]);
-    exit;
-}
-
 if ($user['status'] !== 'active') {
     http_response_code(403);
     echo json_encode(['error' => 'Your account is inactive. Please contact an administrator.']);

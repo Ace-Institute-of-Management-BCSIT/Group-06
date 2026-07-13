@@ -15,6 +15,8 @@ Run these SQL files against a `stocksmart` MySQL/MariaDB database, **in this exa
 3. `migrations/001_auth_security.sql` — login lockout, OTP/email verification columns, `pending` user status
 4. `migrations/002_sales.sql` — sales returns/refunds (`returns`, `return_items`), `partially_refunded` order status
 5. `migrations/003_checkout.sql` — barcode column on `products` for POS search
+6. `migrations/004_remove_otp_verification.sql` — removes the OTP columns `001` added (registration activates
+   accounts immediately now, see `register.php`); migrates any leftover `pending` accounts to `active`
 
 All files are idempotent (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `INSERT IGNORE`) and safe
 to re-run. Using phpMyAdmin or the CLI:
@@ -25,6 +27,7 @@ mysql -u root stocksmart < database/production_upgrade.sql
 mysql -u root stocksmart < database/migrations/001_auth_security.sql
 mysql -u root stocksmart < database/migrations/002_sales.sql
 mysql -u root stocksmart < database/migrations/003_checkout.sql
+mysql -u root stocksmart < database/migrations/004_remove_otp_verification.sql
 ```
 
 Any future schema change should be added as `database/migrations/00N_description.sql`, written to be
@@ -48,5 +51,6 @@ composer install
 - `STOCKSMART_DB_USER` (default `root`)
 - `STOCKSMART_DB_PASS` (default empty)
 
-`helpers/mailer.php` reads `MAIL_DRIVER` (`log` for local dev — OTP/reset codes are written to `logs/mail.log`
-instead of sent; set to `smtp` plus real SMTP credentials in production).
+`helpers/mailer.php` reads `MAIL_DRIVER` (`log` for local dev — password-reset links are written to
+`logs/mail.log` instead of sent; set to `smtp` plus real SMTP credentials in production). It's only used by
+`forgot-password.php` — registration no longer requires email verification.

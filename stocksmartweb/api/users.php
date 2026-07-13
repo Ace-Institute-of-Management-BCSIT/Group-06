@@ -2,7 +2,7 @@
 /**
  * User management (Admin/Super Admin only, gated by the "users.manage" permission).
  * GET    api/users.php            → list all users with role + lockout status
- * POST   api/users.php            → create a user (admin-created accounts are active immediately, no OTP)
+ * POST   api/users.php            → create a user (active immediately — no email verification step)
  * PUT    api/users.php?id=1       → update a user's profile/role/status, optionally reset their password
  * POST   api/users.php?id=1&action=unlock → clear a lockout
  * DELETE api/users.php?id=1       → deactivate (soft delete)

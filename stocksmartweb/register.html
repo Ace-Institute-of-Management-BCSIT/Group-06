@@ -462,9 +462,8 @@
         const data = await res.json();
 
         if (res.ok && data.ok) {
-          toast('Account created. Check your email for a verification code…');
-          if (data.otp_preview) sessionStorage.setItem('ss_otp_preview', data.otp_preview);
-          setTimeout(() => { window.location.href = data.redirect || 'verify-otp.php'; }, 1000);
+          toast(data.message || 'Account created successfully. Please log in.');
+          setTimeout(() => { window.location.href = data.redirect || 'login.php'; }, 1000);
         } else {
           toast(data.error || 'Registration failed. Please try again.');
           registerBtn.classList.remove('loading');

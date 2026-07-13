@@ -723,6 +723,14 @@
       setTimeout(() => el.classList.remove('show'), ms);
     }
 
+    // Registration redirects here with ?registered=1 — accounts are active
+    // immediately (no email verification step), so this is the first and
+    // only confirmation the user sees that their account was created.
+    if (new URLSearchParams(window.location.search).get('registered') === '1') {
+      toast('Account created successfully. Please log in.', 5000);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     // ── Employee ID ──
     function handleEmployeeID() { toast('Redirecting to Employee ID portal…'); }
 
@@ -776,9 +784,6 @@
         if (res.ok && data.ok) {
           toast('Logged in successfully! Redirecting…');
           setTimeout(() => { window.location.href = data.redirect || 'dashboard.php'; }, 800);
-        } else if (data.needs_verification && data.user_id) {
-          toast('Please verify your email to continue. Redirecting…');
-          setTimeout(() => { window.location.href = 'verify-otp.php?user_id=' + data.user_id; }, 800);
         } else {
           toast( (data.error || 'Login failed. Please try again.'));
           loginBtn.classList.remove('loading');

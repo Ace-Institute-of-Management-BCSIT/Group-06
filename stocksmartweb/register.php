@@ -13,9 +13,9 @@
  *  }
  *
  *  On success:
- *    - Saves the account to the users table (role = Staff, status = active).
- *    - Automatically logs the new user in (session fixation protection applied).
- *    - Returns { "ok": true, "redirect": "dashboard.php" }
+ *    - Saves the account to the users table (role = Staff, status = active
+ *      immediately — no email verification step).
+ *    - Returns { "ok": true, "redirect": "login.php?registered=1" }
  *
  *  On failure:
  *    - Returns the appropriate HTTP status + { "error": "..." }
@@ -28,7 +28,6 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';   // starts session + provides $pdo
 require_once __DIR__ . '/helpers/validation.php';
-require_once __DIR__ . '/helpers/mailer.php';
 
 /* ── GET: render the registration form ───────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -103,7 +102,7 @@ if (!empty($errors)) {
     exit;
 }
 
-/* ── Duplicate checks ───────────────────────────────────────────────── */
+/* ── Duplicate checks (username doubles as this app's Employee ID) ────── */
 $stmt = $pdo->prepare('SELECT user_id FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1');
 $stmt->execute([':username' => $username]);
 if ($stmt->fetch()) {
@@ -134,15 +133,11 @@ if (!$roleRow) {
 /* ── Hash the password ──────────────────────────────────────────────── */
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-/* ── Generate the email OTP (6 digits, 10-minute expiry) ──────────────── */
-$otp = (string) random_int(100000, 999999);
-$otpExpiresAt = date('Y-m-d H:i:s', time() + 600);
-
-/* ── Insert the new user as pending until the OTP is verified ─────────── */
+/* ── Insert the new user, active immediately — no email verification ──── */
 try {
     $stmt = $pdo->prepare("
-        INSERT INTO users (full_name, username, email, phone, password_hash, role_id, avatar_emoji, status, otp_code, otp_expires_at)
-        VALUES (:full_name, :username, :email, :phone, :password_hash, :role_id, :avatar, 'pending', :otp, :otp_expires)
+        INSERT INTO users (full_name, username, email, phone, password_hash, role_id, avatar_emoji, status, email_verified_at)
+        VALUES (:full_name, :username, :email, :phone, :password_hash, :role_id, :avatar, 'active', NOW())
     ");
     $stmt->execute([
         ':full_name'     => $fullName,
@@ -152,8 +147,6 @@ try {
         ':password_hash' => $passwordHash,
         ':role_id'       => $staffRoleId,
         ':avatar'        => strtoupper(substr($fullName, 0, 1)),
-        ':otp'           => $otp,
-        ':otp_expires'   => $otpExpiresAt,
     ]);
     $newUserId = (int) $pdo->lastInsertId();
 } catch (PDOException $e) {
@@ -174,23 +167,18 @@ try {
     )->execute([
         ':uid'  => $newUserId,
         ':eid'  => $newUserId,
-        ':desc' => $fullName . ' registered a new account (pending email verification)',
+        ':desc' => $fullName . ' registered a new account',
     ]);
 } catch (Throwable $e) {
     // Non-fatal
 }
 
-/* ── Send the OTP email (dev-log driver by default, see helpers/mailer.php) */
-$mailResult = mail_send($email, 'Verify your StockSmart account', mail_render_otp($fullName, $otp));
-
-/* ── Track the pending user in-session so verify-otp.php knows who this is ── */
-$_SESSION['pending_verify_user_id'] = $newUserId;
 session_write_close();
 
-/* ── Respond ────────────────────────────────────────────────────────── */
+/* ── Respond — straight to login, no email step in between ────────────── */
 echo json_encode([
-    'ok'          => true,
-    'redirect'    => 'verify-otp.php?user_id=' . $newUserId . '&email=' . urlencode($email),
-    'user_id'     => $newUserId,
-    'otp_preview' => $mailResult['driver'] === 'log' ? $otp : null,
+    'ok'       => true,
+    'redirect' => 'login.php?registered=1',
+    'user_id'  => $newUserId,
+    'message'  => 'Account created successfully. Please log in.',
 ]);
