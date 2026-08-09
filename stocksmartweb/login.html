@@ -614,17 +614,7 @@
   <main class="right">
     <div class="form-box">
       <h2>Login now</h2>
-      <p class="subtitle">Welcome back — sign in to your workspace.</p>
-
-      <button class="btn-employee" onclick="handleEmployeeID()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="5" width="20" height="14" rx="2"/>
-          <line x1="2" y1="10" x2="22" y2="10"/>
-        </svg>
-        Login with Employee ID
-      </button>
-
-      <div class="or-divider">or Login with Email</div>
+      <p class="subtitle">Welcome back — sign in to your workspace with your registered email.</p>
 
       <form id="loginForm" novalidate>
         <!-- Email -->
@@ -693,7 +683,7 @@
             <line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
         </div>
-        <p class="info-text">Use your company Employee ID or registered email to access your workspace.</p>
+        <p class="info-text">Use your registered email address to access your workspace.</p>
       </div>
     </div>
   </main>
@@ -723,16 +713,10 @@
       setTimeout(() => el.classList.remove('show'), ms);
     }
 
-    // Registration redirects here with ?registered=1 — accounts are active
-    // immediately (no email verification step), so this is the first and
-    // only confirmation the user sees that their account was created.
-    if (new URLSearchParams(window.location.search).get('registered') === '1') {
-      toast('Account created successfully. Please log in.', 5000);
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+      toast('Password reset successfully! Please log in with your new password.', 5000);
       window.history.replaceState({}, '', window.location.pathname);
     }
-
-    // ── Employee ID ──
-    function handleEmployeeID() { toast('Redirecting to Employee ID portal…'); }
 
     // ── Form validation ──
     const form = document.getElementById('loginForm');

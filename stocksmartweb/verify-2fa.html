@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockSmart — 2FA Verification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:       #0f1b35;
+      --accent:     #5b6ef5;
+      --accent-2:   #7b8df7;
+      --border:     #e2e5ed;
+      --input-bg:   #f8f9fb;
+      --ink:        #111827;
+      --ink-mid:    #374151;
+      --radius-sm:  8px;
+      --radius-md:  12px;
+      --radius-lg:  16px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f1f3f8;
+      padding: 20px;
+    }
+
+    .box {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      padding: 40px 36px;
+      box-shadow: 0 12px 36px rgba(15,27,53,0.08);
+      border: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #7b8df7 0%, var(--accent) 100%);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(91,110,245,.35);
+    }
+
+    .brand-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+    .brand-name span { color: var(--accent); }
+
+    h2 {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -.02em;
+      margin-bottom: 8px;
+    }
+
+    p.sub {
+      font-size: 14px;
+      color: #6b7a96;
+      line-height: 1.55;
+      margin-bottom: 28px;
+    }
+
+    .field { margin-bottom: 20px; }
+
+    .field label {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink-mid);
+      margin-bottom: 8px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 24px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 6px;
+      text-align: center;
+      outline: none;
+      background: var(--input-bg);
+      color: var(--navy);
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    .field input:focus {
+      border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(91,110,245,.14);
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s;
+      box-shadow: 0 4px 16px rgba(91,110,245,.3);
+    }
+
+    .btn-submit:hover { background: #4a5de0; box-shadow: 0 6px 22px rgba(91,110,245,.4); }
+    .btn-submit:disabled { opacity: .6; pointer-events: none; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: #111;
+      color: #fff;
+      padding: 10px 22px;
+      border-radius: 100px;
+      font-size: 13.5px;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,.22);
+      opacity: 0;
+      transition: opacity .25s, transform .25s;
+      z-index: 200;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+  <div class="box">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 26 26" fill="none">
+          <rect x="3" y="3" width="9" height="9" rx="2" fill="white" opacity=".9"/>
+          <rect x="14" y="3" width="9" height="9" rx="2" fill="white" opacity=".6"/>
+          <rect x="3" y="14" width="9" height="9" rx="2" fill="white" opacity=".6"/>
+          <rect x="14" y="14" width="9" height="9" rx="2" fill="white" opacity=".85"/>
+        </svg>
+      </div>
+      <div class="brand-name">Stock<span>Smart</span></div>
+    </div>
+
+    <h2>Two-Factor Authentication</h2>
+    <p class="sub">Open your Authenticator App (Ente Auth) and enter your 6-digit security code.</p>
+
+    <form id="verify2faForm">
+      <div class="field">
+        <label for="code">Authenticator Code</label>
+        <input type="text" id="code" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="123456" required autofocus autocomplete="one-time-code" />
+      </div>
+
+      <button type="submit" class="btn-submit" id="submitBtn">Verify & Log In</button>
+    </form>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    function toast(msg, ms = 3000) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    const form = document.getElementById('verify2faForm');
+    const codeInput = document.getElementById('code');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const code = codeInput.value.trim();
+      if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+        toast('Please enter a valid 6-digit code.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Verifying...';
+
+      try {
+        const res = await fetch('verify-2fa.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          toast('Code Verified! Redirecting...');
+          setTimeout(() => {
+            window.location.href = data.redirect || 'dashboard.php';
+          }, 800);
+        } else {
+          toast(data.error || 'Verification failed.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Verify & Log In';
+        }
+      } catch (err) {
+        toast('Network error. Please try again.');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Verify & Log In';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -13,14 +13,10 @@
  *  }
  *
  *  On success:
- *    - Saves the account to the users table (role = Staff, status = active
- *      immediately — no email verification step).
- *    - Returns { "ok": true, "redirect": "login.php?registered=1" }
- *
- *  On failure:
- *    - Returns the appropriate HTTP status + { "error": "..." }
- *
- *  GET register.php → renders the session-aware registration page
+ *    - Saves the account to the users table with status = 'pending'.
+ *    - Generates a 6-digit OTP code, saves hash to users.otp_code.
+ *    - Delivers the OTP email via Brevo.
+ *    - Returns { "ok": true, "require_otp": true, "email": $email, "redirect": "verify-otp.php?email=..." }
  * ============================================================================
  */
 
@@ -28,6 +24,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';   // starts session + provides $pdo
 require_once __DIR__ . '/helpers/validation.php';
+require_once __DIR__ . '/helpers/mailer.php';
 
 /* ── GET: render the registration form ───────────────────────────────── */
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -102,7 +99,7 @@ if (!empty($errors)) {
     exit;
 }
 
-/* ── Duplicate checks (username doubles as this app's Employee ID) ────── */
+/* ── Duplicate checks ────────────────────────────────────────────── */
 $stmt = $pdo->prepare('SELECT user_id FROM users WHERE LOWER(username) = LOWER(:username) LIMIT 1');
 $stmt->execute([':username' => $username]);
 if ($stmt->fetch()) {
@@ -119,39 +116,38 @@ if ($stmt->fetch()) {
     exit;
 }
 
-/* ── Look up the Staff role_id ──────────────────────────────────────── */
+/* ── Look up Staff role_id ─────────────────────────────────────────── */
 $stmt = $pdo->prepare("SELECT role_id FROM roles WHERE role_name = 'Staff' LIMIT 1");
 $stmt->execute();
 $roleRow = $stmt->fetch();
-if (!$roleRow) {
-    // Fallback: use role_id = 3 which the seed data assigns to Staff
-    $staffRoleId = 3;
-} else {
-    $staffRoleId = (int) $roleRow['role_id'];
-}
+$staffRoleId = $roleRow ? (int) $roleRow['role_id'] : 3;
 
-/* ── Hash the password ──────────────────────────────────────────────── */
+/* ── Hash password & generate 6-digit OTP ───────────────────────────── */
 $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+$rawOtp       = sprintf('%06d', random_int(100000, 999999));
+$otpHash      = hash('sha256', $rawOtp);
+$expiresAt    = date('Y-m-d H:i:s', time() + 900); // 15 minutes
 
-/* ── Insert the new user, active immediately — no email verification ──── */
+/* ── Insert new user with pending status ────────────────────────────── */
 try {
     $stmt = $pdo->prepare("
-        INSERT INTO users (full_name, username, email, phone, password_hash, role_id, avatar_emoji, status, email_verified_at)
-        VALUES (:full_name, :username, :email, :phone, :password_hash, :role_id, :avatar, 'active', NOW())
+        INSERT INTO users (full_name, username, email, phone, password_hash, role_id, avatar_emoji, status, otp_code, otp_expires_at)
+        VALUES (:full_name, :username, :email, :phone, :password_hash, :role_id, :avatar, 'pending', :otp_code, :otp_expires_at)
     ");
     $stmt->execute([
-        ':full_name'     => $fullName,
-        ':username'      => $username,
-        ':email'         => $email,
-        ':phone'         => $phone !== '' ? $phone : null,
-        ':password_hash' => $passwordHash,
-        ':role_id'       => $staffRoleId,
-        ':avatar'        => strtoupper(substr($fullName, 0, 1)),
+        ':full_name'      => $fullName,
+        ':username'       => $username,
+        ':email'          => $email,
+        ':phone'          => $phone !== '' ? $phone : null,
+        ':password_hash'  => $passwordHash,
+        ':role_id'        => $staffRoleId,
+        ':avatar'         => strtoupper(substr($fullName, 0, 1)),
+        ':otp_code'       => $otpHash,
+        ':otp_expires_at' => $expiresAt,
     ]);
     $newUserId = (int) $pdo->lastInsertId();
 } catch (PDOException $e) {
     if ((int) $e->errorInfo[1] === 1062) {
-        // Duplicate key — race condition between our check and insert
         http_response_code(409);
         echo json_encode(['error' => 'That username or email is already registered.']);
         exit;
@@ -159,7 +155,15 @@ try {
     throw $e;
 }
 
-/* ── Log the registration ───────────────────────────────────────────── */
+/* ── Send registration OTP via Brevo / Mailer ────────────────────────── */
+$mailResult = mail_send(
+    $email,
+    'Verify Your StockSmart Registration',
+    mail_render_otp($fullName, $rawOtp, 'register'),
+    true
+);
+
+/* ── Log the registration attempt ──────────────────────────────────── */
 try {
     $pdo->prepare(
         "INSERT INTO activity_logs (user_id, activity_type, entity_type, entity_id, description)
@@ -167,7 +171,7 @@ try {
     )->execute([
         ':uid'  => $newUserId,
         ':eid'  => $newUserId,
-        ':desc' => $fullName . ' registered a new account',
+        ':desc' => $fullName . ' registered a new account (pending OTP verification)',
     ]);
 } catch (Throwable $e) {
     // Non-fatal
@@ -175,10 +179,19 @@ try {
 
 session_write_close();
 
-/* ── Respond — straight to login, no email step in between ────────────── */
-echo json_encode([
-    'ok'       => true,
-    'redirect' => 'login.php?registered=1',
-    'user_id'  => $newUserId,
-    'message'  => 'Account created successfully. Please log in.',
-]);
+/* ── Respond with redirect to verify-otp.php ───────────────────────── */
+$redirectUrl = 'verify-otp.php?email=' . urlencode($email) . '&type=register';
+
+$responsePayload = [
+    'ok'          => true,
+    'require_otp' => true,
+    'email'       => $email,
+    'redirect'    => $redirectUrl,
+    'message'     => 'Registration initialised! Verification code sent to your email.',
+];
+
+if ($mailResult['driver'] === 'log') {
+    $responsePayload['otp_preview'] = $rawOtp;
+}
+
+echo json_encode($responsePayload);

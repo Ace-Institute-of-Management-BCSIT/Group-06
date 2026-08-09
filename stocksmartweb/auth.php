@@ -105,6 +105,17 @@ function auth_require(): void
         || (isset($_SERVER['HTTP_CONTENT_TYPE']) && str_contains($_SERVER['HTTP_CONTENT_TYPE'], 'application/json'))
     );
 
+    if (!empty($_SESSION['2fa_pending_user_id'])) {
+        if ($isAjax) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['error' => '2FA authentication required', 'redirect' => 'verify-2fa.php']);
+            exit;
+        }
+        header('Location: verify-2fa.php');
+        exit;
+    }
+
     if ($isAjax) {
         http_response_code(401);
         header('Content-Type: application/json; charset=utf-8');

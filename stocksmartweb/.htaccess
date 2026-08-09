@@ -3,5 +3,5 @@ RewriteEngine On
 
 # Keep old bookmarked/static template URLs working, but ensure all browser
 # traffic enters the PHP routes that establish sessions and page data.
-RewriteCond %{THE_REQUEST} \s/+(.*/)?(index|login|register|dashboard|products|inventory|checkout|profile|verify-otp|forgot-password|reset-password|users|roles|suppliers|customers|purchases|sales|reports|settings|logs)\.html[\s?] [NC]
-RewriteRule ^(index|login|register|dashboard|products|inventory|checkout|profile|verify-otp|forgot-password|reset-password|users|roles|suppliers|customers|purchases|sales|reports|settings|logs)\.html$ $1.php [R=302,L,NE]
+RewriteCond %{THE_REQUEST} \s/+(.*/)?(index|login|register|dashboard|products|inventory|checkout|profile|verify-otp|setup-2fa|verify-2fa|forgot-password|reset-password|users|roles|suppliers|customers|purchases|sales|reports|settings|logs)\.html[\s?] [NC]
+RewriteRule ^(index|login|register|dashboard|products|inventory|checkout|profile|verify-otp|setup-2fa|verify-2fa|forgot-password|reset-password|users|roles|suppliers|customers|purchases|sales|reports|settings|logs)\.html$ $1.php [R=302,L,NE]

@@ -4,10 +4,7 @@
  *  StockSmart — Forgot Password Request (forgot-password.php)
  * ============================================================================
  *  GET  forgot-password.php          → renders the request form
- *  POST forgot-password.php {email}  → issues a reset token (always returns
- *                                        ok:true regardless of whether the
- *                                        email exists, to avoid user
- *                                        enumeration)
+ *  POST forgot-password.php {email}  → issues a 6-digit reset OTP via email
  * ============================================================================
  */
 
@@ -35,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$body = json_decode(file_get_contents('php://input'), true);
+$body  = json_decode(file_get_contents('php://input'), true);
 $email = trim((string) ($body['email'] ?? ''));
 
 if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -44,7 +41,12 @@ if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-$genericResponse = ['ok' => true, 'message' => 'If an account with that email exists, a reset link has been sent.'];
+$redirectUrl = 'reset-password.php?email=' . urlencode($email);
+$genericResponse = [
+    'ok'       => true,
+    'message'  => 'If an account with that email exists, a 6-digit reset code has been sent to your inbox.',
+    'redirect' => $redirectUrl,
+];
 
 $stmt = $pdo->prepare('SELECT user_id, full_name, email, status FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1');
 $stmt->execute([':email' => $email]);
@@ -55,31 +57,41 @@ if (!$user || $user['status'] === 'suspended') {
     exit;
 }
 
-$rawToken = bin2hex(random_bytes(32));
-$tokenHash = hash('sha256', $rawToken);
-$expiresAt = date('Y-m-d H:i:s', time() + 1800); // 30 minutes
+/* ── Generate 6-digit OTP code ─────────────────────────────────────── */
+$rawOtp    = sprintf('%06d', random_int(100000, 999999));
+$tokenHash = hash('sha256', $rawOtp);
+$expiresAt = date('Y-m-d H:i:s', time() + 900); // 15 minutes
 
 try {
+    // Invalidate any previous reset tokens for this user
+    $pdo->prepare('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = :uid AND used_at IS NULL')
+        ->execute([':uid' => $user['user_id']]);
+
     $pdo->prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (:uid, :hash, :exp)')
         ->execute([':uid' => $user['user_id'], ':hash' => $tokenHash, ':exp' => $expiresAt]);
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Could not process the request. Please try again.']);
+    echo json_encode(['error' => 'Could not process password reset request. Please try again.']);
     exit;
 }
 
-$scheme = app_is_https() ? 'https://' : 'http://';
-$basePath = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
-$resetUrl = $scheme . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $basePath . '/reset-password.php?token=' . $rawToken;
-
-$mailResult = mail_send($user['email'], 'Reset your StockSmart password', mail_render_reset_link($user['full_name'], $resetUrl));
+/* ── Send reset OTP email via Brevo ────────────────────────────────── */
+$mailResult = mail_send(
+    $user['email'],
+    'Reset Your StockSmart Password Code',
+    mail_render_otp($user['full_name'], $rawOtp, 'reset'),
+    true
+);
 
 try {
     $pdo->prepare(
         "INSERT INTO activity_logs (user_id, activity_type, entity_type, entity_id, description)
          VALUES (:uid, 'security', 'users', :eid, :desc)"
-    )->execute([':uid' => $user['user_id'], ':eid' => $user['user_id'], ':desc' => $user['full_name'] . ' requested a password reset']);
+    )->execute([':uid' => $user['user_id'], ':eid' => $user['user_id'], ':desc' => $user['full_name'] . ' requested password reset OTP']);
 } catch (Throwable $e) { /* non-fatal */ }
 
-$genericResponse['reset_preview'] = $mailResult['driver'] === 'log' ? $resetUrl : null;
+if ($mailResult['driver'] === 'log') {
+    $genericResponse['otp_preview'] = $rawOtp;
+}
+
 echo json_encode($genericResponse);
