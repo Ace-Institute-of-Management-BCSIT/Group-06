@@ -16,29 +16,69 @@ role_permissions) those files introduced. User seed data is reset to the origina
 mysql -u root < stocksmart.sql
 ```
 
-`production_upgrade.sql` and `migrations/*.sql` are kept for history and for **upgrading an existing database**
-that was set up before 2026-07-13 (they're idempotent — `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`,
-`INSERT IGNORE` — safe to re-run). If you have an older local database, apply them in this order:
+## Applying migrations — use the runner, not `mysql <` by hand
+
+```bash
+php database/migrate.php            # apply everything pending
+php database/migrate.php --status   # show what's applied / pending, change nothing
+```
+
+The runner records every applied file in a `schema_migrations` table and only runs what is missing, so it is
+safe to run on every deploy. Connection settings come from the same environment/`.env` the app uses — there is
+nothing to edit per environment.
+
+**First run against an existing database (including the production VPS).** Migrations `001`–`004` are recorded
+as applied *without being executed*, because a database that already has the schema already contains their
+changes (`stocksmart.sql` folds them in, and the VPS ran them long ago). This is a correctness requirement, not
+an optimisation: `004` runs `UPDATE users SET status='active' WHERE status='pending'`, and `005` later
+reintroduced `pending` as the OTP-registration default — replaying `004` would silently activate accounts that
+are legitimately awaiting verification. `005` onward run normally; `005` is fully guarded by
+`INFORMATION_SCHEMA` checks, so it is a no-op where it has already been applied.
+
+The runner also **ignores the `USE stocksmart;` line** that migrations `001`–`005` begin with. That line would
+hijack the connection and target the wrong database on any deployment that named it something other than
+`stocksmart`; the runner always stays on the database `db.php` connected to.
+
+A `GET_LOCK` named lock serialises concurrent runs, and a failure stops the run without recording the failed
+file, so it is retried after you fix it rather than being skipped.
+
+**Automatic mode (optional).** Set `DB_AUTO_MIGRATE=true` in `.env` and the app applies pending migrations
+itself, once, on the first request after new migration files are deployed — guarded by a marker file (so the
+steady-state cost is one small `file_get_contents` and *zero* queries) and the same named lock. It is off by
+default; the explicit command above is more predictable and reports failures to your terminal. See
+`helpers/migrator.php`.
+
+## Migration history
+
+`production_upgrade.sql` and `migrations/*.sql` are all idempotent (`CREATE TABLE IF NOT EXISTS`,
+`ADD COLUMN IF NOT EXISTS`, `INSERT IGNORE`, `INFORMATION_SCHEMA` guards).
 
 1. `production_upgrade.sql` — RBAC (permissions/role_permissions), user_sessions, password_reset_tokens,
    system_settings, notifications, purchase_orders/purchase_order_items
 2. `migrations/001_auth_security.sql` — login lockout, OTP/email verification columns, `pending` user status
 3. `migrations/002_sales.sql` — sales returns/refunds (`returns`, `return_items`), `partially_refunded` order status
 4. `migrations/003_checkout.sql` — barcode column on `products` for POS search
-5. `migrations/004_remove_otp_verification.sql` — removes the OTP columns `001` added (registration activates
-   accounts immediately now, see `register.php`); migrates any leftover `pending` accounts to `active`
-
-```bash
-mysql -u root stocksmart < database/production_upgrade.sql
-mysql -u root stocksmart < database/migrations/001_auth_security.sql
-mysql -u root stocksmart < database/migrations/002_sales.sql
-mysql -u root stocksmart < database/migrations/003_checkout.sql
-mysql -u root stocksmart < database/migrations/004_remove_otp_verification.sql
-```
+5. `migrations/004_remove_otp_verification.sql` — removes the OTP columns `001` added; migrates leftover
+   `pending` accounts to `active`
+6. `migrations/005_otp_and_2fa.sql` — reintroduces OTP registration columns plus Auth-App (TOTP) 2FA columns,
+   and makes `pending` the default user status again
+7. `migrations/006_optional_batch_expiry.sql` — relaxes `product_batches.expiry_date` from `NOT NULL` to
+   `NULL`, so a batch can be recorded as non-perishable ("No Expiry") instead of being forced to carry an
+   invented date that would then raise a false expiry alert. Widening only: every existing row keeps its date,
+   nothing is rewritten or dropped.
 
 Any future schema change should be added as `database/migrations/00N_description.sql`, written to be
 re-runnable, and listed here in order — and periodically folded back into `stocksmart.sql` so a fresh install
-stays a single file.
+stays a single file. **Never edit or renumber a migration that has already shipped**; the runner keys the
+ledger on the numeric prefix.
+
+## Where stock and expiry rules live
+
+`helpers/stock_status.php` is the single source of truth for "is this product low on stock?" and "is this batch
+expiring?", with a browser twin at `assets/js/stock-status.js` for client-side table rendering. Queries that
+need the rules in SQL should use its `sql_available_stock()` / `sql_expiry_alerting()` helpers rather than
+writing the comparison inline — that inlining is exactly what let five screens disagree about the same
+product.
 
 ## Composer dependencies
 

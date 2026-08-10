@@ -338,6 +338,10 @@ a{ color:inherit; text-decoration:none; }
 .status.low::before{ background:var(--amber); }
 .status.out { background: var(--red-bg); color: var(--red); }
 .status.out::before{ background:var(--red); }
+/* "Critical" — stock at or below 40% of the reorder level. Shares the red of
+   Out of Stock because it is equally urgent, but is a distinct state. */
+.status.critical { background: var(--red-bg); color: var(--red); }
+.status.critical::before{ background:var(--red); }
 
 .no-results{
   padding: 50px 22px;
@@ -626,6 +630,7 @@ a{ color:inherit; text-decoration:none; }
 
 </style>
 <script src="assets/js/currency.js"></script>
+<script src="assets/js/stock-status.js"></script>
 <script defer src="assets/js/nav-guard.js"></script>
 </head>
 <body>
@@ -889,11 +894,13 @@ async function loadInventoryData(){
 
 function getAvailable(p){ return p.inStock - p.reserved; }
 
+/* Delegated to window.StockStatus (assets/js/stock-status.js) so this page,
+   the Products table, the dashboard widget and the sidebar badge classify the
+   same quantity identically. The rule itself is unchanged from what this page
+   already did — it gains the "Critical" band the others were using. */
 function getStatus(p){
-  const available = getAvailable(p);
-  if (available <= 0) return { text:'Out of Stock', cls:'out' };
-  if (available <= p.reorderLevel) return { text:'Low Stock', cls:'low' };
-  return { text:'In Stock', cls:'in' };
+  const st = StockStatus.stockState(getAvailable(p), p.reorderLevel);
+  return { text: st.label, cls: st.cls, key: st.key };
 }
 
 /* ============================================================
@@ -1020,8 +1027,15 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
-/* ---- Combined search + category + location + restock filter ---- */
-const filterState = { category: null, location: null, restockOnly: false };
+/* ---- Combined search + category + location + restock filter ----
+   restockOnly starts on when the page is opened as inventory.php?filter=restock
+   — the destination behind the sidebar's "Restocking Alerts" entry. Reusing
+   this existing filter is why no separate restock page was added. */
+const filterState = {
+  category: null,
+  location: null,
+  restockOnly: new URLSearchParams(location.search).get('filter') === 'restock'
+};
 
 function applyFilters(){
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -1029,8 +1043,9 @@ function applyFilters(){
     const matchesQ = q === '' || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q);
     const matchesCategory = !filterState.category || p.category === filterState.category;
     const matchesLocation = !filterState.location || p.location.includes(filterState.location);
-    const available = getAvailable(p);
-    const matchesRestock = !filterState.restockOnly || available <= p.reorderLevel;
+    // Same predicate as the sidebar badge count and the Products page's
+    // "Needs Restocking" filter: available <= the product's own reorder level.
+    const matchesRestock = !filterState.restockOnly || StockStatus.needsRestock(getAvailable(p), p.reorderLevel);
     return matchesQ && matchesCategory && matchesLocation && matchesRestock;
   });
   renderInventoryTable(filtered);
@@ -1208,6 +1223,10 @@ function initFilters(){
     restockBtn.classList.toggle('active', filterState.restockOnly);
     applyFilters();
   });
+
+  // Reflect a ?filter=restock deep link in the pill's pressed state, so
+  // arriving from the sidebar looks the same as clicking the pill.
+  restockBtn.classList.toggle('active', filterState.restockOnly);
 }
 
 /* ============================================================

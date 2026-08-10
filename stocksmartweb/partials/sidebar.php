@@ -57,10 +57,18 @@ function nav_sections(): array
             ],
         ],
         [
+            // Both entries are real destinations, not decoration. "Restocking
+            // Alerts" opens the Inventory page with its existing Restock
+            // filter pre-applied (inventory.html reads ?filter=restock) rather
+            // than duplicating that list on a new page; "Expiry Alerts" opens
+            // the batch-level Expiry page, which had no equivalent before.
+            // The badges are filled by assets/js/nav-guard.js from
+            // api/notifications.php's badgeCounts — live counts over the same
+            // rules each page applies, so badge and page always agree.
             'title' => 'ALERTS',
             'items' => [
-                ['key' => 'restock', 'label' => 'Restocking Alerts', 'href' => null, 'perm' => null, 'badge' => ['id' => 'badgeRestock', 'color' => 'amber']],
-                ['key' => 'expiry',  'label' => 'Expiry Alerts',     'href' => null, 'perm' => null, 'badge' => ['id' => 'badgeExpiry', 'color' => 'red']],
+                ['key' => 'restock', 'label' => 'Restocking Alerts', 'href' => 'inventory.php?filter=restock', 'perm' => 'inventory.view', 'badge' => ['id' => 'badgeRestock', 'color' => 'amber']],
+                ['key' => 'expiry',  'label' => 'Expiry Alerts',     'href' => 'expiry.php',                   'perm' => 'inventory.view', 'badge' => ['id' => 'badgeExpiry', 'color' => 'red']],
             ],
         ],
         [
@@ -108,15 +116,18 @@ function render_sidebar(string $activeKey): string
             $activeClass = $item['key'] === $activeKey ? ' active' : '';
             $permAttr = $item['perm'] ? ' data-perm="' . htmlspecialchars($item['perm']) . '"' : '';
 
+            // A badge can now ride on a real link, not only on an inert span —
+            // the ALERTS entries are navigable.
+            $badge = $item['badge'] ?? null;
+            $badgeHtml = $badge
+                ? "<span class=\"badge {$badge['color']}\" id=\"{$badge['id']}\" style=\"margin-left:auto;\">0</span>"
+                : '';
+
             if ($item['href'] !== null) {
                 $html .= "    <a class=\"nav-item{$activeClass}\" href=\"{$item['href']}\"{$permAttr}>\n";
                 $html .= "      <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">{$svg}</svg>\n";
-                $html .= "      {$item['label']}</a>\n";
+                $html .= "      {$item['label']}{$badgeHtml}</a>\n";
             } else {
-                $badge = $item['badge'] ?? null;
-                $badgeHtml = $badge
-                    ? "<span class=\"badge {$badge['color']}\" id=\"{$badge['id']}\" style=\"margin-left:auto;\">0</span>"
-                    : '';
                 $html .= "    <span class=\"nav-item\" style=\"cursor:default;\">\n";
                 $html .= "      <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">{$svg}</svg>\n";
                 $html .= "      {$item['label']}{$badgeHtml}</span>\n";

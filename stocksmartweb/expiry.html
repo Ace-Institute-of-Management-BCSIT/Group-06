@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StockSmart — Expiry &amp; Batches</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .status-expired{background:var(--red-bg);color:var(--red);}
+  .status-expired::before{background:var(--red);}
+  .status-soon{background:var(--amber-bg);color:var(--amber);}
+  .status-soon::before{background:var(--amber);}
+  .status-valid{background:var(--green-bg);color:var(--green);}
+  .status-valid::before{background:var(--green);}
+  .status-none{background:var(--accent-dim);color:var(--text-400);}
+  .status-none::before{background:var(--text-400);}
+
+  .expiry-date{font-weight:600;}
+  .expiry-sub{display:block;font-size:11px;font-weight:600;margin-top:1px;color:var(--text-400);}
+  .expiry-sub.overdue{color:var(--red);}
+  .expiry-sub.warn{color:var(--amber);}
+
+  tr.highlight-row{background:var(--accent-dim);animation:ss-flash 2.4s ease;}
+  @keyframes ss-flash{0%,40%{background:#fde68a;}100%{background:var(--accent-dim);}}
+
+  .filter-note{font-size:12px;color:var(--text-400);margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .filter-note a{color:var(--blue-accent);font-weight:600;text-decoration:none;}
+  .field-hint{font-size:11.5px;color:var(--text-400);margin-top:4px;}
+  @media(max-width:880px){ .app{grid-template-columns:1fr;} .sidebar{display:none;} .stats{grid-template-columns:repeat(2,1fr);} }
+</style>
+<script src="assets/js/stock-status.js"></script>
+<script defer src="assets/js/nav-guard.js"></script>
+</head>
+<body>
+<div class="app">
+  <!--SIDEBAR-->
+
+  <main class="main">
+    <!--TOPBAR-->
+
+    <div class="stats" id="statsGrid"></div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="searchInput" placeholder="Search product, SKU or batch number...">
+      </div>
+      <select class="pill" id="statusFilter">
+        <option value="">All Batches</option>
+        <option value="alerting">Needs Attention (expired + expiring soon)</option>
+        <option value="expired">Expired</option>
+        <option value="expiring_soon">Expiring Soon</option>
+        <option value="valid">Valid</option>
+        <option value="none">No Expiry</option>
+      </select>
+      <span class="filter-note" id="filterNote"></span>
+      <button class="btn-add" id="addBatchBtn" data-perm="inventory.manage">+ Add Batch</button>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Batch</th>
+            <th>Location</th>
+            <th>Quantity</th>
+            <th>Expiry</th>
+            <th>Status</th>
+            <th style="text-align:right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="batchBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display:none;"></div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Add Batch</h3>
+      <button id="modalClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="fProduct">Product</label>
+        <select id="fProduct"></select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fWarehouse">Location</label>
+          <select id="fWarehouse"></select>
+        </div>
+        <div class="field">
+          <label for="fQuantity">Quantity</label>
+          <input type="number" id="fQuantity" min="0" step="1" placeholder="0">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fBatchNumber">Batch Number <span style="font-weight:400;color:var(--text-400);">(optional)</span></label>
+          <input type="text" id="fBatchNumber" maxlength="40" placeholder="Auto-generated if blank">
+        </div>
+        <div class="field">
+          <label for="fManufacture">Manufacture Date <span style="font-weight:400;color:var(--text-400);">(optional)</span></label>
+          <input type="date" id="fManufacture">
+        </div>
+      </div>
+      <div class="field">
+        <label for="fExpiry">Expiry Date</label>
+        <input type="date" id="fExpiry">
+        <div class="field-hint">
+          Leave blank for non-perishable stock — it will show as <b>No Expiry</b> and will never raise an alert.
+          Warnings begin 2 months before the date entered.
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" id="cancelBtn">Cancel</button>
+      <button class="btn-primary" id="saveBtn">Save Batch</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg">Saved</span></div>
+
+<script>
+/* ===========================================================
+   STOCKSMART — Expiry & Batches
+   Batch-level expiry management. Every status label on this
+   page comes from window.StockStatus (assets/js/stock-status.js),
+   the browser twin of helpers/stock_status.php — so a batch that
+   reads "Expiring Soon" here is counted identically by the
+   sidebar badge, the dashboard panel and the notification bell.
+=========================================================== */
+
+const API = 'api/batches.php';
+const params = new URLSearchParams(location.search);
+
+let state = { batches: [], counts: {}, warehouses: [], products: [] };
+let editingId = null;
+const highlightBatchId = Number(params.get('batch')) || null;
+const productFilter = Number(params.get('product')) || null;
+
+const els = {
+  body: document.getElementById('batchBody'),
+  empty: document.getElementById('emptyState'),
+  search: document.getElementById('searchInput'),
+  status: document.getElementById('statusFilter'),
+  note: document.getElementById('filterNote'),
+  overlay: document.getElementById('overlay'),
+  toast: document.getElementById('toast'),
+  toastMsg: document.getElementById('toastMsg')
+};
+
+if (params.get('status')) els.status.value = params.get('status');
+
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+function showToast(msg, isError){
+  els.toastMsg.textContent = msg;
+  els.toast.classList.toggle('error', !!isError);
+  els.toast.classList.add('show');
+  setTimeout(() => els.toast.classList.remove('show'), 2600);
+}
+
+function csrf(){ const u = window.STOCKSMART_USER; return (u && u.csrf) || ''; }
+
+function canManage(){
+  const u = window.STOCKSMART_USER;
+  const perms = (u && Array.isArray(u.permissions)) ? u.permissions : [];
+  return perms.indexOf('*') !== -1 || perms.indexOf('inventory.manage') !== -1;
+}
+
+/* ---- Stat cards: the four expiry states, from the API's whole-set counts ---- */
+function renderStats(counts){
+  const cfg = [
+    { key:'expired',       label:'Expired',        color:'pink',   filter:'expired' },
+    { key:'expiring_soon', label:'Expiring Soon',  color:'yellow', filter:'expiring_soon' },
+    { key:'valid',         label:'Valid',          color:'green',  filter:'valid' },
+    { key:'none',          label:'No Expiry',      color:'cyan',   filter:'none' }
+  ];
+  document.getElementById('statsGrid').innerHTML = cfg.map(c => `
+    <div class="stat-card" data-filter="${c.filter}" style="cursor:pointer;">
+      <div class="stat-value">${counts[c.key] || 0}</div>
+      <div class="stat-label">${c.label}</div>
+    </div>`).join('');
+
+  document.querySelectorAll('.stat-card[data-filter]').forEach(card => {
+    card.addEventListener('click', () => {
+      els.status.value = card.dataset.filter;
+      load();
+    });
+  });
+}
+
+function statusPill(batch){
+  // Trust the server's classification, but recompute client-side through the
+  // shared helper so a stale payload can never render a contradictory label.
+  const st = StockStatus.expiryState(batch.expiryDate);
+  return `<span class="status-pill status-${st.cls}">${st.label}</span>`;
+}
+
+function expiryCell(batch){
+  if (!batch.expiryDate) {
+    return '<span style="color:var(--text-400);">No expiry</span>';
+  }
+  const st = StockStatus.expiryState(batch.expiryDate);
+  const subClass = st.key === 'expired' ? 'overdue' : (st.key === 'expiring_soon' ? 'warn' : '');
+  return `<span class="expiry-date">${StockStatus.formatExpiry(batch.expiryDate)}</span>
+          <span class="expiry-sub ${subClass}">${StockStatus.expiryCountdown(batch.expiryDate)}</span>`;
+}
+
+function renderTable(){
+  const manage = canManage();
+
+  if (!state.batches.length) {
+    els.body.innerHTML = '';
+    els.empty.style.display = 'block';
+    els.empty.textContent = els.status.value === 'alerting' || els.status.value === ''
+      ? 'No products expiring within the next 2 months.'
+      : 'No batches match this filter.';
+    return;
+  }
+
+  els.empty.style.display = 'none';
+  els.body.innerHTML = state.batches.map(b => `
+    <tr data-batch="${b.batchId}"${b.batchId === highlightBatchId ? ' class="highlight-row"' : ''}>
+      <td>
+        <b>${escapeHtml(b.productName)}</b>
+        <span style="display:block;font-size:11.5px;color:var(--text-400);">${escapeHtml(b.sku)}</span>
+      </td>
+      <td>${escapeHtml(b.batchNumber)}</td>
+      <td>${escapeHtml(b.warehouseName)}</td>
+      <td>${b.quantity}</td>
+      <td>${expiryCell(b)}</td>
+      <td>${statusPill(b)}</td>
+      <td>
+        <div class="row-actions end">
+          ${manage ? `<button class="wide" data-edit="${b.batchId}">Edit</button>
+          <button class="danger" data-delete="${b.batchId}" aria-label="Delete batch">&times;</button>` : ''}
+        </div>
+      </td>
+    </tr>`).join('');
+
+  els.body.querySelectorAll('[data-edit]').forEach(btn =>
+    btn.addEventListener('click', () => openModal(Number(btn.dataset.edit))));
+  els.body.querySelectorAll('[data-delete]').forEach(btn =>
+    btn.addEventListener('click', () => deleteBatch(Number(btn.dataset.delete))));
+
+  if (highlightBatchId) {
+    const row = els.body.querySelector(`tr[data-batch="${highlightBatchId}"]`);
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function renderNote(){
+  if (!productFilter) { els.note.innerHTML = ''; return; }
+  const first = state.batches[0];
+  const name = first ? escapeHtml(first.productName) : 'this product';
+  els.note.innerHTML = `Showing batches for <b>&nbsp;${name}</b>&nbsp; · <a href="expiry.php">Show all batches</a>`;
+}
+
+async function load(){
+  const qs = new URLSearchParams();
+  if (els.status.value) qs.set('status', els.status.value);
+  if (productFilter) qs.set('product', String(productFilter));
+  const q = els.search.value.trim();
+  if (q) qs.set('q', q);
+
+  try {
+    const res = await fetch(`${API}?${qs.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load batches');
+    state = data;
+    renderStats(data.counts || {});
+    renderTable();
+    renderNote();
+  } catch (err) {
+    els.body.innerHTML = '';
+    els.empty.style.display = 'block';
+    els.empty.textContent = err.message;
+  }
+}
+
+/* ---- Add / Edit ---- */
+function fillSelects(){
+  document.getElementById('fProduct').innerHTML =
+    state.products.map(p => `<option value="${p.id}">${escapeHtml(p.name)} — ${escapeHtml(p.sku)}</option>`).join('');
+  document.getElementById('fWarehouse').innerHTML =
+    state.warehouses.map(w => `<option value="${w.id}">${escapeHtml(w.name)}</option>`).join('');
+}
+
+function openModal(batchId){
+  editingId = batchId || null;
+  fillSelects();
+
+  const b = batchId ? state.batches.find(x => x.batchId === batchId) : null;
+  document.getElementById('modalTitle').textContent = b ? 'Edit Batch' : 'Add Batch';
+  document.getElementById('fProduct').value = b ? b.productId : (productFilter || (state.products[0] || {}).id || '');
+  document.getElementById('fWarehouse').value = b ? b.warehouseId : ((state.warehouses[0] || {}).id || '');
+  document.getElementById('fQuantity').value = b ? b.quantity : '';
+  document.getElementById('fBatchNumber').value = b ? b.batchNumber : '';
+  document.getElementById('fManufacture').value = b && b.manufactureDate ? b.manufactureDate : '';
+  document.getElementById('fExpiry').value = b && b.expiryDate ? b.expiryDate : '';
+
+  els.overlay.classList.add('open');
+  document.getElementById('fProduct').focus();
+}
+
+function closeModal(){ els.overlay.classList.remove('open'); }
+
+async function save(){
+  const payload = {
+    productId: Number(document.getElementById('fProduct').value) || 0,
+    warehouseId: Number(document.getElementById('fWarehouse').value) || 0,
+    quantity: Number(document.getElementById('fQuantity').value) || 0,
+    batchNumber: document.getElementById('fBatchNumber').value.trim(),
+    manufactureDate: document.getElementById('fManufacture').value || null,
+    expiryDate: document.getElementById('fExpiry').value || null
+  };
+
+  const url = editingId ? `${API}?id=${editingId}` : API;
+  const method = editingId ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save the batch');
+    closeModal();
+    showToast(editingId ? 'Batch updated' : 'Batch added');
+    load();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+async function deleteBatch(batchId){
+  const b = state.batches.find(x => x.batchId === batchId);
+  if (!confirm(`Delete batch ${b ? b.batchNumber : '#' + batchId}? This cannot be undone.`)) return;
+
+  try {
+    const res = await fetch(`${API}?id=${batchId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-Token': csrf() }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not delete the batch');
+    showToast('Batch deleted');
+    load();
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+document.getElementById('addBatchBtn').addEventListener('click', () => openModal(null));
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+document.getElementById('saveBtn').addEventListener('click', save);
+els.overlay.addEventListener('click', e => { if (e.target === els.overlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+els.status.addEventListener('change', load);
+els.search.addEventListener('input', () => { clearTimeout(window._q); window._q = setTimeout(load, 300); });
+
+load();
+</script>
+</body>
+</html>

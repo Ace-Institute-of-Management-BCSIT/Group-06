@@ -78,6 +78,21 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+// 2b) OPTIONAL AUTOMATIC MIGRATIONS
+//
+// Disabled unless DB_AUTO_MIGRATE=true is set in the environment/.env. When
+// off (the default, and what the README recommends) this call returns after a
+// single getenv() and touches nothing. When on, it applies pending migrations
+// exactly once after a deploy adds new migration files — guarded by a marker
+// file and a MySQL named lock, never re-running DDL per request. See the
+// commentary at the bottom of helpers/migrator.php.
+// ---------------------------------------------------------------------------
+if (app_env('DB_AUTO_MIGRATE', 'false') === 'true') {
+    require_once __DIR__ . '/helpers/migrator.php';
+    migrator_auto($pdo);
+}
+
+// ---------------------------------------------------------------------------
 // 3) USAGE EXAMPLE (in any other PHP file):
 //
 //   require_once __DIR__ . '/db.php';

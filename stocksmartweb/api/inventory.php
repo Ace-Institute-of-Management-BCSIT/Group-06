@@ -37,6 +37,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../helpers/stock_status.php';
 require_once __DIR__ . '/../helpers/notifications.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -157,12 +158,16 @@ if ($method === 'GET') {
         $available = $onHand - $reserved;
         $reorder   = (int) $r['reorder_level'];
 
-        if ($available <= 0) {
+        // Classification comes from helpers/stock_status.php. "Critical" is a
+        // severity band inside low stock, so it counts toward the Low Stock
+        // card rather than becoming a fifth card the UI has no slot for.
+        $stateKey = stock_state($available, $reorder)['key'];
+        if ($stateKey === 'out_of_stock') {
             $outOfStockCount++;
-        } elseif ($available <= $reorder) {
-            $lowStockCount++;
-        } else {
+        } elseif ($stateKey === 'in_stock') {
             $inStockCount++;
+        } else {
+            $lowStockCount++;
         }
 
         $totalValue += $onHand * (float) $r['price'];
@@ -195,10 +200,13 @@ if ($method === 'GET') {
         $warehouses[] = ['id' => (int) $w['warehouse_id'], 'name' => $w['warehouse_name']];
     }
 
-    $expiringSoonCount = (int) $pdo->query("
-        SELECT COUNT(*) AS c FROM product_batches
-        WHERE quantity > 0 AND DATEDIFF(expiry_date, CURDATE()) BETWEEN 0 AND 7
-    ")->fetch()['c'];
+    // Expired + expiring within the shared 2-month window (helpers/stock_status.php).
+    // This used to count a 7-day window while the dashboard counted 14 and alert
+    // scanning used 30, so all three reported different numbers for one database.
+    $expiringSoonCount = (int) $pdo->query('
+        SELECT COUNT(*) AS c FROM product_batches b
+        WHERE ' . sql_expiry_alerting('b.expiry_date', 'b.quantity') . '
+    ')->fetch()['c'];
 
     $activityRows = $pdo->query("
         SELECT activity_type, description, created_at

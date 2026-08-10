@@ -104,6 +104,29 @@
     return div.innerHTML;
   }
 
+  /**
+   * Renders one alert. When api/notifications.php resolved a destination for
+   * it, the row IS an <a href> — real navigation, so middle-click, ctrl-click,
+   * "open in new tab", Tab-to-focus and Enter all behave the way a link should,
+   * instead of being trapped in a JS-only click handler.
+   *
+   * `link` is null whenever the product or batch behind the alert no longer
+   * exists (the API checks before emitting it), so a stale alert degrades to
+   * plain, unclickable text rather than a dead URL.
+   */
+  function notifRowHtml(n) {
+    var inner =
+      '<b>' + escapeHtml(n.title) + '</b>' + escapeHtml(n.message) +
+      '<div style="color:var(--text-400);font-size:11px;margin-top:2px;">' + timeAgoShort(n.created_at) + '</div>';
+    var classes = 'notif-row ' + (n.read_at ? '' : 'unread');
+
+    if (n.link) {
+      return '<a class="' + classes + '" href="' + escapeHtml(n.link) + '" data-id="' + n.notification_id + '">' +
+        inner + '<span class="notif-go">View details →</span></a>';
+    }
+    return '<div class="' + classes + '" data-id="' + n.notification_id + '">' + inner + '</div>';
+  }
+
   function renderNotifPanel(items) {
     var body = document.getElementById('notifPanelBody');
     if (!body) return;
@@ -111,12 +134,7 @@
       body.innerHTML = '<div class="notif-empty">No alerts right now — everything looks good.</div>';
       return;
     }
-    body.innerHTML = items.map(function (n) {
-      return '<div class="notif-row ' + (n.read_at ? '' : 'unread') + '" data-id="' + n.notification_id + '">' +
-        '<b>' + escapeHtml(n.title) + '</b>' + escapeHtml(n.message) +
-        '<div style="color:var(--text-400);font-size:11px;margin-top:2px;">' + timeAgoShort(n.created_at) + '</div>' +
-        '</div>';
-    }).join('');
+    body.innerHTML = items.map(notifRowHtml).join('');
   }
 
   function loadNotifications() {
@@ -150,12 +168,23 @@
       body.addEventListener('click', function (e) {
         var row = e.target.closest('.notif-row');
         if (!row || !row.classList.contains('unread')) return;
+
         row.classList.remove('unread');
         var user = window.STOCKSMART_USER;
-        fetch('api/notifications.php?action=read&id=' + row.dataset.id, {
+        var isLink = row.tagName === 'A';
+
+        // Never preventDefault on a link row — the browser must be free to
+        // navigate (or open a new tab on ctrl/middle-click). keepalive lets the
+        // mark-as-read request survive the page unload that follows.
+        var request = fetch('api/notifications.php?action=read&id=' + row.dataset.id, {
           method: 'POST',
-          headers: { 'X-CSRF-Token': (user && user.csrf) || '' }
-        }).then(loadNotifications);
+          headers: { 'X-CSRF-Token': (user && user.csrf) || '' },
+          keepalive: isLink
+        });
+
+        // Only refresh the panel when we're staying on this page; re-rendering
+        // mid-navigation would just be thrown away.
+        if (!isLink) request.then(loadNotifications).catch(function () {});
       });
     }
 

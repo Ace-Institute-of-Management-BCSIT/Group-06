@@ -11,7 +11,7 @@
  *
  *  Response shape matches exactly what products.html's renderTable()/
  *  renderStats() expect:
- *    { id, name, sub, category, sku, stock, price, threshold }
+ *    { id, name, sub, category, sku, stock, price, threshold, batchCount, expiryDate }
  *
  *  Field mapping notes:
  *    - "sub"       -> products.unit (e.g. "pcs", "kg", "pack") — shown as the
@@ -20,7 +20,14 @@
  *                     form is a free-text input, so on save we find-or-create
  *                     a matching category by name rather than requiring a
  *                     dropdown of existing category IDs.
- *    - "stock"     -> SUM(inventory.quantity_on_hand) across every warehouse.
+ *    - "stock"     -> AVAILABLE stock across every warehouse:
+ *                     SUM(quantity_on_hand) - SUM(quantity_reserved), the
+ *                     definition in helpers/stock_status.php that Inventory,
+ *                     the dashboard and alert scanning all use. Reserved units
+ *                     are already promised to an order, so counting them as
+ *                     sellable is what previously let this page report a
+ *                     product as "In Stock" while the sidebar badge counted it
+ *                     as low.
  *                     The current UI has no per-warehouse stock entry, so a
  *                     new product's stock is written to DEFAULT_WAREHOUSE_ID,
  *                     and an edit reconciles the total by adjusting whichever
@@ -28,6 +35,12 @@
  *    - "threshold" -> products.reorder_level (used for Low/Critical labels).
  *                     Not yet editable from this form — defaults to 10 for
  *                     new products, left untouched on edit.
+ *    - "expiryDate"/"batchCount" -> expiry is stored per BATCH on
+ *                     product_batches, never on products. These two fields let
+ *                     the Add/Edit form offer a single expiry date for the
+ *                     simple case (a product with 0 or 1 batch) and defer to
+ *                     expiry.php when several batches carry different dates.
+ *                     A null expiry means non-perishable and never alerts.
  *
  *  Permission rules: GET requires "products.view"; POST/PUT/DELETE require
  *  "products.manage" (see database/production_upgrade.sql role_permissions
@@ -38,18 +51,46 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../helpers/stock_status.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
 /**
+ * Batch summary for one product, so the Add/Edit form knows whether it may
+ * offer a single expiry date or has to defer to the Expiry page.
+ *
+ * @return array{count:int, batchId:?int, expiryDate:?string}
+ */
+function product_batch_summary(PDO $pdo, int $productId): array
+{
+    $stmt = $pdo->prepare('SELECT batch_id, expiry_date FROM product_batches WHERE product_id = :id ORDER BY batch_id ASC');
+    $stmt->execute([':id' => $productId]);
+    $rows = $stmt->fetchAll();
+
+    return [
+        'count'      => count($rows),
+        'batchId'    => count($rows) === 1 ? (int) $rows[0]['batch_id'] : null,
+        'expiryDate' => count($rows) === 1 ? $rows[0]['expiry_date'] : null,
+    ];
+}
+
+/**
  * Fetch one product in the exact shape the frontend expects.
+ *
+ * "stock" is available stock — on_hand MINUS reserved — matching
+ * helpers/stock_status.php and every other screen. This function previously
+ * summed quantity_on_hand alone while the list query on the same endpoint
+ * subtracted reserved, so a single product could report two different stock
+ * figures from two calls to this one file.
  */
 function fetch_product_row(PDO $pdo, int $id): ?array
 {
+    $available = sql_available_stock('i');
+
     $stmt = $pdo->prepare("
         SELECT p.product_id, p.product_name, p.unit, p.sku, p.barcode, p.price, p.reorder_level,
                c.category_name,
-               COALESCE(SUM(i.quantity_on_hand), 0) AS stock
+               {$available} AS stock
         FROM   products p
         JOIN   categories c ON c.category_id = p.category_id
         LEFT JOIN inventory i ON i.product_id = p.product_id
@@ -61,21 +102,89 @@ function fetch_product_row(PDO $pdo, int $id): ?array
     if (!$r) {
         return null;
     }
+
+    $batches = product_batch_summary($pdo, $id);
+
     return [
-        'id'        => (int) $r['product_id'],
-        'name'      => $r['product_name'],
-        'sub'       => $r['unit'],
-        'category'  => $r['category_name'],
-        'sku'       => $r['sku'],
-        'barcode'   => $r['barcode'],
-        'stock'     => (int) $r['stock'],
-        'price'     => (float) $r['price'],
-        'threshold' => (int) $r['reorder_level'],
+        'id'         => (int) $r['product_id'],
+        'name'       => $r['product_name'],
+        'sub'        => $r['unit'],
+        'category'   => $r['category_name'],
+        'sku'        => $r['sku'],
+        'barcode'    => $r['barcode'],
+        'stock'      => (int) $r['stock'],
+        'price'      => (float) $r['price'],
+        'threshold'  => (int) $r['reorder_level'],
+        'batchCount' => $batches['count'],
+        'expiryDate' => $batches['expiryDate'],
     ];
 }
 
 /**
- * Validates the Add/Edit payload. Returns [errors[], name, category, sku, stock, price].
+ * Creates or updates the batch that carries a product's expiry date.
+ *
+ * Expiry lives on product_batches, never on products (see api/batches.php).
+ * The Add/Edit Product form only ever manages the SIMPLE case — a product with
+ * one batch, or none yet:
+ *   - 0 batches + a date  -> create the product's first batch
+ *   - 1 batch             -> update that batch's expiry (null clears it)
+ *   - 2+ batches          -> do nothing; the form disables the field and sends
+ *                            the user to expiry.php, because collapsing
+ *                            several batches onto one date would silently
+ *                            rewrite real, differing expiry dates.
+ */
+function sync_product_expiry(PDO $pdo, int $productId, ?string $expiryDate, int $quantity): void
+{
+    $batches = product_batch_summary($pdo, $productId);
+
+    if ($batches['count'] > 1) {
+        return;
+    }
+
+    if ($batches['count'] === 1) {
+        $pdo->prepare('UPDATE product_batches SET expiry_date = :exp WHERE batch_id = :id')
+            ->execute([':exp' => $expiryDate, ':id' => $batches['batchId']]);
+        return;
+    }
+
+    if ($expiryDate === null) {
+        return; // nothing to record — a non-perishable product needs no batch
+    }
+
+    // Unique batch number; batch_number carries a UNIQUE index.
+    $batchNumber = null;
+    for ($attempt = 0; $attempt < 6; $attempt++) {
+        $candidate = 'BT-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 5));
+        $check = $pdo->prepare('SELECT batch_id FROM product_batches WHERE batch_number = :n LIMIT 1');
+        $check->execute([':n' => $candidate]);
+        if (!$check->fetch()) {
+            $batchNumber = $candidate;
+            break;
+        }
+    }
+    if ($batchNumber === null) {
+        return; // extraordinarily unlikely; never block the product save over it
+    }
+
+    $pdo->prepare('
+        INSERT INTO product_batches (product_id, warehouse_id, batch_number, quantity, expiry_date)
+        VALUES (:pid, :wid, :num, :qty, :exp)
+    ')->execute([
+        ':pid' => $productId,
+        ':wid' => DEFAULT_WAREHOUSE_ID,
+        ':num' => $batchNumber,
+        ':qty' => max(0, $quantity),
+        ':exp' => $expiryDate,
+    ]);
+}
+
+/**
+ * Validates the Add/Edit payload.
+ * Returns [errors[], name, category, sku, barcode, stock, price, expiryDate].
+ *
+ * expiryDate is nullable on purpose: a blank field means the product does not
+ * expire, which is a legitimate answer for non-perishable stock and must not
+ * be turned into an invented date.
  */
 function validate_product_payload(array $body): array
 {
@@ -87,6 +196,11 @@ function validate_product_payload(array $body): array
     $price    = $body['price'] ?? 0;
 
     $errors = [];
+
+    [$expiryDate, $expiryError] = expiry_parse_input($body['expiryDate'] ?? null);
+    if ($expiryError !== null) {
+        $errors[] = $expiryError;
+    }
 
     if ($name === '') {
         $errors[] = 'Product name is required.';
@@ -118,7 +232,7 @@ function validate_product_payload(array $body): array
         $errors[] = 'Price must be a non-negative number.';
     }
 
-    return [$errors, $name, $category, $sku, $barcode, (float) $stock, (float) $price];
+    return [$errors, $name, $category, $sku, $barcode, (float) $stock, (float) $price, $expiryDate];
 }
 
 function find_or_create_category(PDO $pdo, string $name): int
@@ -160,10 +274,17 @@ if ($method === 'GET') {
         $where = "p.status != 'discontinued'";
     }
 
+    // batch_count / first_expiry let the Add/Edit form decide whether it can
+    // safely offer a single expiry field for this product, or has to defer to
+    // expiry.php because several batches carry different dates.
+    $available = sql_available_stock('i');
+
     $stmt = $pdo->prepare("
         SELECT p.product_id, p.product_name, p.unit, p.sku, p.barcode, p.price, p.reorder_level,
                c.category_name,
-               COALESCE(SUM(i.quantity_on_hand), 0) - COALESCE(SUM(i.quantity_reserved), 0) AS stock
+               {$available} AS stock,
+               (SELECT COUNT(*) FROM product_batches b WHERE b.product_id = p.product_id) AS batch_count,
+               (SELECT b2.expiry_date FROM product_batches b2 WHERE b2.product_id = p.product_id ORDER BY b2.batch_id ASC LIMIT 1) AS first_expiry
         FROM   products p
         JOIN   categories c ON c.category_id = p.category_id
         LEFT JOIN inventory i ON i.product_id = p.product_id
@@ -176,16 +297,19 @@ if ($method === 'GET') {
     $rows = $stmt->fetchAll();
 
     $out = array_map(function (array $r): array {
+        $batchCount = (int) $r['batch_count'];
         return [
-            'id'        => (int) $r['product_id'],
-            'name'      => $r['product_name'],
-            'sub'       => $r['unit'],
-            'category'  => $r['category_name'],
-            'sku'       => $r['sku'],
-            'barcode'   => $r['barcode'],
-            'stock'     => (int) $r['stock'],
-            'price'     => (float) $r['price'],
-            'threshold' => (int) $r['reorder_level'],
+            'id'         => (int) $r['product_id'],
+            'name'       => $r['product_name'],
+            'sub'        => $r['unit'],
+            'category'   => $r['category_name'],
+            'sku'        => $r['sku'],
+            'barcode'    => $r['barcode'],
+            'stock'      => (int) $r['stock'],
+            'price'      => (float) $r['price'],
+            'threshold'  => (int) $r['reorder_level'],
+            'batchCount' => $batchCount,
+            'expiryDate' => $batchCount === 1 ? $r['first_expiry'] : null,
         ];
     }, $rows);
 
@@ -201,7 +325,7 @@ if ($method === 'POST') {
     api_verify_csrf();
 
     $body = api_json_body();
-    [$errors, $name, $category, $sku, $barcode, $stock, $price] = validate_product_payload($body);
+    [$errors, $name, $category, $sku, $barcode, $stock, $price, $expiryDate] = validate_product_payload($body);
     if ($errors) {
         http_response_code(422);
         echo json_encode(['error' => implode(' ', $errors)]);
@@ -258,6 +382,10 @@ if ($method === 'POST') {
             ]);
         }
 
+        // Records the first batch when an expiry date was supplied. Blank means
+        // non-perishable and creates no batch at all — no invented dates.
+        sync_product_expiry($pdo, $productId, $expiryDate, (int) $stock);
+
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -296,7 +424,7 @@ if ($method === 'PUT') {
     }
 
     $body = api_json_body();
-    [$errors, $name, $category, $sku, $barcode, $stock, $price] = validate_product_payload($body);
+    [$errors, $name, $category, $sku, $barcode, $stock, $price, $expiryDate] = validate_product_payload($body);
     if ($errors) {
         http_response_code(422);
         echo json_encode(['error' => implode(' ', $errors)]);
@@ -352,7 +480,15 @@ if ($method === 'PUT') {
         $stmt->execute([':id' => $id]);
         $invRow = $stmt->fetch();
 
-        $stmt2 = $pdo->prepare('SELECT COALESCE(SUM(quantity_on_hand), 0) AS total FROM inventory WHERE product_id = :id');
+        // The form's "stock" box now shows AVAILABLE stock (on_hand - reserved),
+        // matching the table beside it, so the current total it is compared
+        // against has to be available too. Comparing an available figure with a
+        // raw on_hand total would silently subtract the reserved quantity from
+        // on_hand every time a product with reservations was saved unchanged.
+        $stmt2 = $pdo->prepare('
+            SELECT COALESCE(SUM(quantity_on_hand), 0) - COALESCE(SUM(quantity_reserved), 0) AS total
+            FROM inventory WHERE product_id = :id
+        ');
         $stmt2->execute([':id' => $id]);
         $currentTotal = (float) $stmt2->fetch()['total'];
         $delta        = $stock - $currentTotal;
@@ -370,6 +506,11 @@ if ($method === 'PUT') {
                 VALUES (:pid, :wid, :qty, 0)
             ')->execute([':pid' => $id, ':wid' => DEFAULT_WAREHOUSE_ID, ':qty' => (int) $stock]);
         }
+
+        // Only touches expiry when this product has 0 or 1 batch — see
+        // sync_product_expiry(). Products with several batches keep their
+        // individual dates and are edited on expiry.php instead.
+        sync_product_expiry($pdo, $id, $expiryDate, (int) $stock);
 
         $pdo->commit();
     } catch (Throwable $e) {

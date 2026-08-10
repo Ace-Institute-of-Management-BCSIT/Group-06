@@ -405,9 +405,15 @@ tbody tr:last-child td{ border-bottom:none; }
 }
 .notif-panel.open{ display:block; }
 .notif-panel h4{ font-size:13px; padding:14px 16px 8px; margin:0; color:var(--text-600); }
-.notif-panel .notif-row{ padding:10px 16px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-600); cursor:pointer; }
+.notif-panel .notif-row{ display:block; padding:10px 16px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-600); cursor:pointer; text-decoration:none; }
 .notif-panel .notif-row b{ display:block; font-size:12.5px; color:var(--text-900); margin-bottom:2px; }
 .notif-panel .notif-row.unread b::before{ content:'\25CF '; color:var(--blue-accent); font-size:9px; }
+/* Alerts that resolve to a product/batch render as real <a> links (see
+   assets/js/nav-guard.js). Give them a visible hover + keyboard focus ring so
+   they read as navigable and stay usable without a mouse. */
+.notif-panel a.notif-row:hover{ background:var(--accent-dim); }
+.notif-panel a.notif-row:focus-visible{ outline:2px solid var(--blue-accent); outline-offset:-2px; background:var(--accent-dim); }
+.notif-panel .notif-row .notif-go{ display:block; font-size:11px; font-weight:700; color:var(--blue-accent); margin-top:3px; }
 .notif-panel .notif-empty{ padding:20px 16px; text-align:center; color:var(--text-400); font-size:12.5px; }
 .notif-dot{ position:absolute; top:9px; right:9px; width:8px; height:8px; border-radius:50%; background:var(--red); border:2px solid #fff; display:none; }
 .notif-dot.show{ display:block; }

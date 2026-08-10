@@ -9,16 +9,98 @@
  * POST api/notifications.php?action=read&id=X -> mark one notification read
  * POST api/notifications.php?action=read_all  -> mark every notification read
  *
- * badgeCounts backs the sidebar's ALERTS section (see partials/sidebar.php
- * and assets/js/nav-guard.js) — the same two numbers on every page, sourced
- * from the same unacknowledged `alerts` rows check_stock_alerts() writes.
+ * Each notification carries a `link`, resolved SERVER-SIDE from its stable
+ * entity_type/entity_id — never by matching the product name out of the
+ * message text. The target row is looked up before the link is emitted, so a
+ * notification about a since-deleted product or batch comes back with
+ * link: null and the bell renders it as plain text instead of a dead link.
+ *
+ *   low_stock / out_of_stock -> products.php?product=<id>   (highlights the row)
+ *   expiry                   -> expiry.php?batch=<id>       (highlights the batch)
+ *                               expiry.php?product=<id>     (older rows that
+ *                               recorded the product rather than the batch)
+ *
+ * badgeCounts backs the sidebar's ALERTS section (see partials/sidebar.php and
+ * assets/js/nav-guard.js). They come from alert_counts() in
+ * helpers/notifications.php, which counts live products/batches using
+ * helpers/stock_status.php — the same rules the Inventory and Expiry pages
+ * those badges link to apply. Counting unacknowledged `alerts` rows instead
+ * (the old approach) drifted: restocking a product left its alert row behind,
+ * so the badge stayed high while the page it linked to showed nothing.
  */
 
 declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../helpers/notifications.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $action = $_GET['action'] ?? '';
+
+/**
+ * Attaches a `link` to each notification, verifying the target still exists.
+ * Lookups are batched — two queries total, regardless of feed length.
+ *
+ * @param array<int, array<string, mixed>> $rows
+ * @return array<int, array<string, mixed>>
+ */
+function notifications_attach_links(PDO $pdo, array $rows): array
+{
+    $productIds = [];
+    $batchIds = [];
+
+    foreach ($rows as $r) {
+        $id = (int) ($r['entity_id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        if (($r['entity_type'] ?? '') === 'product_batches') {
+            $batchIds[$id] = $id;
+        } elseif (($r['entity_type'] ?? '') === 'products') {
+            $productIds[$id] = $id;
+        }
+    }
+
+    $liveProducts = [];
+    if ($productIds !== []) {
+        $in = implode(',', array_fill(0, count($productIds), '?'));
+        $stmt = $pdo->prepare("SELECT product_id FROM products WHERE product_id IN ($in)");
+        $stmt->execute(array_values($productIds));
+        foreach ($stmt->fetchAll() as $row) {
+            $liveProducts[(int) $row['product_id']] = true;
+        }
+    }
+
+    $liveBatches = [];
+    if ($batchIds !== []) {
+        $in = implode(',', array_fill(0, count($batchIds), '?'));
+        $stmt = $pdo->prepare("SELECT batch_id FROM product_batches WHERE batch_id IN ($in)");
+        $stmt->execute(array_values($batchIds));
+        foreach ($stmt->fetchAll() as $row) {
+            $liveBatches[(int) $row['batch_id']] = true;
+        }
+    }
+
+    foreach ($rows as &$r) {
+        $r['link'] = null;
+        $id = (int) ($r['entity_id'] ?? 0);
+        if ($id <= 0) {
+            continue;
+        }
+        $entity = (string) ($r['entity_type'] ?? '');
+        $type = (string) ($r['notification_type'] ?? '');
+
+        if ($entity === 'product_batches' && isset($liveBatches[$id])) {
+            $r['link'] = 'expiry.php?batch=' . $id;
+        } elseif ($entity === 'products' && isset($liveProducts[$id])) {
+            $r['link'] = $type === 'expiry'
+                ? 'expiry.php?product=' . $id
+                : 'products.php?product=' . $id;
+        }
+    }
+    unset($r);
+
+    return $rows;
+}
 
 if ($method === 'GET') {
     api_require_permission('notifications.view');
@@ -30,17 +112,10 @@ if ($method === 'GET') {
     ")->fetchAll();
     $unread = (int) $pdo->query('SELECT COUNT(*) FROM notifications WHERE read_at IS NULL')->fetchColumn();
 
-    $restockCount = 0;
-    $expiryCount = 0;
-    try {
-        $restockCount = (int) $pdo->query("SELECT COUNT(*) FROM alerts WHERE alert_type IN ('low_stock','out_of_stock') AND is_acknowledged = 0")->fetchColumn();
-        $expiryCount = (int) $pdo->query("SELECT COUNT(*) FROM alerts WHERE alert_type = 'expiry' AND is_acknowledged = 0")->fetchColumn();
-    } catch (Throwable $e) { /* alerts table not migrated yet */ }
-
     echo json_encode([
-        'notifications' => $rows,
+        'notifications' => notifications_attach_links($pdo, $rows),
         'unreadCount' => $unread,
-        'badgeCounts' => ['restock' => $restockCount, 'expiry' => $expiryCount],
+        'badgeCounts' => alert_counts($pdo),
     ]);
     exit;
 }

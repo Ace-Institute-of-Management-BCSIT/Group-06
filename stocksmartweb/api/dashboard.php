@@ -22,6 +22,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_bootstrap.php';
+require_once __DIR__ . '/../helpers/stock_status.php';
 require_once __DIR__ . '/../helpers/notifications.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -77,10 +78,12 @@ $outOfStockCount  = (int) ($stockRow['out_of_stock'] ?? 0);
 
 $totalSuppliers = (int) $pdo->query("SELECT COUNT(*) c FROM suppliers WHERE status = 'active'")->fetch()['c'];
 
-$expiringSoonCount = (int) $pdo->query("
-    SELECT COUNT(*) c FROM product_batches
-    WHERE quantity > 0 AND DATEDIFF(expiry_date, CURDATE()) BETWEEN 0 AND 7
-")->fetch()['c'];
+// Expired + expiring inside the shared 2-month window. The stat card, the
+// panel below, the sidebar badge and the bell now all count the same thing.
+$expiringSoonCount = (int) $pdo->query('
+    SELECT COUNT(*) c FROM product_batches b
+    WHERE ' . sql_expiry_alerting('b.expiry_date', 'b.quantity') . '
+')->fetch()['c'];
 
 $todaySales = (float) $pdo->query("
     SELECT COALESCE(SUM(grand_total),0) v FROM orders
@@ -156,40 +159,53 @@ $recentSales = array_map(fn($r) => [
     'date'     => $r['order_date'],
 ], $recentRows);
 
-/* ---------- Low stock products (most critical first) ---------- */
+/* ---------- Low stock products (most critical first) ----------
+ * Carries product_id so each row can link to the product it names, instead of
+ * being dead text the user has to go and search for. Out-of-stock products are
+ * included: the panel is the restocking shortlist, and something at zero needs
+ * restocking more urgently than something merely low.
+ */
+$available = sql_available_stock('i');
 $lowStockRows = $pdo->query("
-    SELECT p.product_name,
-           COALESCE(SUM(i.quantity_on_hand),0) - COALESCE(SUM(i.quantity_reserved),0) AS available,
+    SELECT p.product_id, p.product_name,
+           {$available} AS available,
            p.reorder_level
     FROM products p
     LEFT JOIN inventory i ON i.product_id = p.product_id
     WHERE p.status != 'discontinued'
     GROUP BY p.product_id, p.product_name, p.reorder_level
-    HAVING available > 0 AND available <= p.reorder_level
+    HAVING available <= p.reorder_level
     ORDER BY available ASC
     LIMIT 5
 ")->fetchAll();
-$lowStockProducts = array_map(fn($r) => [
-    'name'    => $r['product_name'],
-    'stock'   => (int) $r['available'],
-    'reorder' => (int) $r['reorder_level'],
-], $lowStockRows);
+$lowStockProducts = array_map(static function (array $r): array {
+    $state = stock_state((int) $r['available'], (int) $r['reorder_level']);
+    return [
+        'id'      => (int) $r['product_id'],
+        'name'    => $r['product_name'],
+        'stock'   => (int) $r['available'],
+        'reorder' => (int) $r['reorder_level'],
+        'status'  => $state['label'],
+        'cls'     => $state['cls'],
+    ];
+}, $lowStockRows);
 
-/* ---------- Expiry alerts (soonest first) ---------- */
-$expiryRows = $pdo->query("
-    SELECT p.product_name, b.batch_number, b.quantity, DATEDIFF(b.expiry_date, CURDATE()) AS days_left
-    FROM product_batches b
-    JOIN products p ON p.product_id = b.product_id
-    WHERE b.quantity > 0 AND DATEDIFF(b.expiry_date, CURDATE()) BETWEEN -30 AND 14
-    ORDER BY days_left ASC
-    LIMIT 5
-")->fetchAll();
-$expiryAlerts = array_map(fn($r) => [
-    'name'     => $r['product_name'],
-    'batch'    => $r['batch_number'],
-    'stock'    => (int) $r['quantity'],
-    'daysLeft' => (int) $r['days_left'],
-], $expiryRows);
+/* ---------- Expiry alerts ----------
+ * Expired first, then soonest — expiry_batches_alerting() already returns the
+ * set ordered by date, and expired dates sort before upcoming ones naturally.
+ * The window is the shared 2 months; batches with no expiry never appear.
+ * Each row carries batch_id so the panel can link straight to the batch.
+ */
+$expiryAlerts = array_map(static fn (array $b): array => [
+    'batchId'    => $b['batch_id'],
+    'productId'  => $b['product_id'],
+    'name'       => $b['product_name'],
+    'batch'      => $b['batch_number'],
+    'stock'      => $b['quantity'],
+    'expiryDate' => $b['expiry_date'],
+    'daysLeft'   => $b['state']['daysLeft'],
+    'status'     => $b['state']['key'],
+], array_slice(expiry_batches_alerting($pdo), 0, 5));
 
 /* ---------- Activity feed ---------- */
 $activityRows = $pdo->query("

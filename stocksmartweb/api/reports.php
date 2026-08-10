@@ -1,14 +1,21 @@
 <?php
 /**
- * Reports: Sales, Inventory, Purchases, Suppliers, Customers, Profit, Revenue.
- * GET api/reports.php?type=sales|inventory|purchases|suppliers|customers|profit|revenue
+ * Reports: Sales, Inventory, Expiry, Purchases, Suppliers, Customers, Profit, Revenue.
+ * GET api/reports.php?type=sales|inventory|expiry|purchases|suppliers|customers|profit|revenue
  *     &from=YYYY-MM-DD&to=YYYY-MM-DD&format=json|pdf|excel|csv
+ *
+ * Stock status and expiry status in these reports come from
+ * helpers/stock_status.php — the same classifier the dashboard, Products,
+ * Inventory and alert scanning use, so an exported report can never contradict
+ * the screen it was run from.
  */
 
 declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../helpers/export.php';
 require_once __DIR__ . '/../helpers/currency.php';
+require_once __DIR__ . '/../helpers/stock_status.php';
+require_once __DIR__ . '/../helpers/notifications.php';
 
 api_require_permission('reports.view');
 
@@ -44,10 +51,15 @@ switch ($type) {
 
     case 'inventory':
         $title = 'Inventory Report';
-        $headers = ['SKU', 'Product', 'Category', 'In Stock', 'Reorder Level', 'Stock Value'];
+        // Reports now state stock status explicitly, using the same classifier
+        // as every screen — an exported report that disagreed with the
+        // dashboard it was run from would be worse than no column at all.
+        // "In Stock" is available stock (on_hand - reserved), matching the app.
+        $headers = ['SKU', 'Product', 'Category', 'In Stock', 'Reorder Level', 'Status', 'Stock Value'];
+        $available = sql_available_stock('i');
         $stmt = $pdo->query("
             SELECT p.sku, p.product_name, c.category_name, p.reorder_level, p.cost_price,
-                   COALESCE(SUM(i.quantity_on_hand), 0) AS stock
+                   {$available} AS stock
             FROM products p
             JOIN categories c ON c.category_id = p.category_id
             LEFT JOIN inventory i ON i.product_id = p.product_id
@@ -56,8 +68,27 @@ switch ($type) {
             ORDER BY p.product_name
         ");
         foreach ($stmt->fetchAll() as $r) {
-            $value = (float) $r['stock'] * (float) $r['cost_price'];
-            $rows[] = [$r['sku'], $r['product_name'], $r['category_name'], (int) $r['stock'], (int) $r['reorder_level'], money_npr($value)];
+            $stock = (int) $r['stock'];
+            $value = $stock * (float) $r['cost_price'];
+            $state = stock_state($stock, (int) $r['reorder_level']);
+            $rows[] = [$r['sku'], $r['product_name'], $r['category_name'], $stock, (int) $r['reorder_level'], $state['label'], money_npr($value)];
+        }
+        break;
+
+    case 'expiry':
+        // Batch-level expiry, same 2-month window and ordering as the dashboard
+        // panel and the Expiry page.
+        $title = 'Expiry Report';
+        $headers = ['Product', 'Batch', 'Location', 'Quantity', 'Expiry Date', 'Status'];
+        foreach (expiry_batches_alerting($pdo) as $b) {
+            $rows[] = [
+                $b['product_name'],
+                $b['batch_number'],
+                $b['warehouse_name'],
+                $b['quantity'],
+                date('d M Y', (int) strtotime($b['expiry_date'])),
+                $b['state']['label'],
+            ];
         }
         break;
 

@@ -234,14 +234,20 @@
   .stock-cell .level-dot{width:7px;height:7px;border-radius:50%;}
   .stock-num{font-weight:600;}
   .stock-sub{display:block;font-size:11px;font-weight:600;margin-top:1px;}
+  /* Class suffixes are the `cls` values from assets/js/stock-status.js:
+     out | critical | low | in — the same four states the whole app uses. */
+  .lvl-out .level-dot{background:var(--red);}
+  .lvl-out .stock-sub{color:var(--red);}
   .lvl-critical .level-dot{background:var(--red);}
   .lvl-critical .stock-sub{color:var(--red);}
   .lvl-low .level-dot{background:var(--amber);}
   .lvl-low .stock-sub{color:var(--amber);}
-  .lvl-medium .level-dot{background:var(--blue-accent);}
-  .lvl-medium .stock-sub{color:var(--blue-accent);}
-  .lvl-high .level-dot{background:var(--green);}
-  .lvl-high .stock-sub{color:var(--green);}
+  .lvl-in .level-dot{background:var(--green);}
+  .lvl-in .stock-sub{color:var(--green);}
+
+  /* Row a low-stock notification linked to (products.php?product=<id>). */
+  tr.highlight-row{background:var(--accent-dim);animation:ss-flash 2.4s ease;}
+  @keyframes ss-flash{0%,40%{background:#fde68a;}100%{background:var(--accent-dim);}}
 
   .price-text{font-weight:600;}
 
@@ -373,6 +379,7 @@
   }
 </style>
 <script src="assets/js/currency.js"></script>
+<script src="assets/js/stock-status.js"></script>
 <script defer src="assets/js/nav-guard.js"></script>
 </head>
 <body>
@@ -424,11 +431,15 @@
       <select class="pill" id="categoryFilter">
         <option value="">All Categories</option>
       </select>
+      <!-- Filter values are the stable keys from assets/js/stock-status.js, not
+           display text, so renaming a label can never break filtering. -->
       <select class="pill" id="statusFilter">
-        <option value="">All Statuses</option>
-        <option value="In Stock">In Stock</option>
-        <option value="Low Stock">Low Stock</option>
-        <option value="Out of Stock">Out of Stock</option>
+        <option value="">All Stock Levels</option>
+        <option value="in_stock">In Stock</option>
+        <option value="low_stock">Low Stock</option>
+        <option value="critical">Critical</option>
+        <option value="out_of_stock">Out of Stock</option>
+        <option value="needs_restock">Needs Restocking (all below reorder level)</option>
       </select>
       <button class="btn-add" id="addProductBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add Product</button>
     </div>
@@ -438,12 +449,17 @@
       <table>
         <thead>
           <tr>
+            <!-- The separate STATUS column is gone: it restated what the STOCK
+                 cell already says, and did so using a DIFFERENT rule (it read
+                 "In Stock" for a quantity the stock cell simultaneously
+                 labelled "Low"). One column now carries quantity + state,
+                 both from the shared classifier. Sorting by stock still sorts
+                 by quantity, which is what the numbers in the cell mean. -->
             <th data-key="name">PRODUCT <span class="arrow">↕</span></th>
             <th data-key="category">CATEGORY <span class="arrow">↕</span></th>
             <th data-key="sku">SKU <span class="arrow">↕</span></th>
             <th data-key="stock">STOCK <span class="arrow">↕</span></th>
             <th data-key="price">PRICE <span class="arrow">↕</span></th>
-            <th data-key="status">STATUS <span class="arrow">↕</span></th>
             <th>ACTIONS</th>
           </tr>
         </thead>
@@ -489,12 +505,24 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label>Stock (units)</label>
+          <label for="fStock">Stock (units)</label>
           <input type="number" id="fStock" min="0" placeholder="0">
         </div>
         <div class="field">
-          <label>Price (Rs.)</label>
+          <label for="fPrice">Price (Rs.)</label>
           <input type="number" id="fPrice" min="0" placeholder="0">
+        </div>
+      </div>
+      <!-- Expiry is stored on product_batches, not on products. For a product
+           with no batches yet this creates its first one; for a product with
+           exactly one batch it edits that batch's date. Products with several
+           batches carry different dates per batch, so the field is disabled
+           and links to expiry.php rather than overwriting them all. -->
+      <div class="field">
+        <label for="fExpiry">Expiry Date <span style="font-weight:400;color:var(--text-400);">(optional)</span></label>
+        <input type="date" id="fExpiry">
+        <div class="field-hint" id="expiryHint">
+          Leave blank for non-perishable products. Warnings start 2 months before this date.
         </div>
       </div>
     </div>
@@ -522,6 +550,11 @@ let editingId = null;
 let currentPage = 1;
 const pageSize = 8;
 
+/* Deep link from a low-stock notification: products.php?product=<id>.
+   The id is the stable identifier the notification carried — nothing here
+   matches on product NAME, which would break on renames and duplicates. */
+const highlightProductId = Number(new URLSearchParams(location.search).get('product')) || null;
+
 const els = {
   body: document.getElementById('tableBody'),
   search: document.getElementById('searchInput'),
@@ -536,26 +569,19 @@ const els = {
 };
 
 
-function levelClass(stock, threshold){
-  const ratio = threshold ? stock/threshold : 1;
-  if(stock === 0) return {cls:'lvl-critical', label:'Out'};
-  if(ratio <= 0.4) return {cls:'lvl-critical', label:'Critical'};
-  if(ratio <= 0.75) return {cls:'lvl-low', label:'Low'};
-  if(ratio < 1.1) return {cls:'lvl-medium', label:'Medium'};
-  return {cls:'lvl-high', label:'High'};
-}
+/* ---------------------------------------------------------------------------
+   Stock classification — delegated entirely to window.StockStatus
+   (assets/js/stock-status.js), the browser twin of helpers/stock_status.php.
 
-function statusOf(p){
-  if(p.stock === 0) return 'Out of Stock';
-  if(p.stock < p.threshold) return 'Low Stock';
-  return 'In Stock';
-}
+   This page used to carry TWO competing rules of its own:
+     levelClass()  ratio bands 0.4 / 0.75 / 1.1 -> Out|Critical|Low|Medium|High
+     statusOf()    stock === 0 / stock < threshold -> Out|Low|In Stock
+   They disagreed with each other (a product could be "Medium" and "Low Stock"
+   at once) and both disagreed with the backend, which uses <= reorder_level on
+   available rather than on-hand stock. Both are now gone.
+--------------------------------------------------------------------------- */
+function stateOf(p){ return StockStatus.stockState(p.stock, p.threshold); }
 
-function statusPillClass(status){
-  if(status === 'Out of Stock') return 'status-out';
-  if(status === 'Low Stock') return 'status-low';
-  return 'status-in';
-}
 
 function populateCategoryFilter(){
   const cats = [...new Set(products.map(p=>p.category))].sort();
@@ -571,15 +597,18 @@ function getFiltered(){
   let list = products.filter(p=>{
     const matchesQ = !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
     const matchesCat = !cat || p.category === cat;
-    const matchesStatus = !status || statusOf(p) === status;
+    // "needs_restock" is the same predicate the sidebar badge and the
+    // Inventory page's Restock filter use: available <= reorder level.
+    const matchesStatus = !status
+      || (status === 'needs_restock'
+          ? StockStatus.needsRestock(p.stock, p.threshold)
+          : stateOf(p).key === status);
     return matchesQ && matchesCat && matchesStatus;
   });
 
   if(sortKey){
     list = list.slice().sort((a,b)=>{
-      let av, bv;
-      if(sortKey === 'status'){ av = statusOf(a); bv = statusOf(b); }
-      else { av = a[sortKey]; bv = b[sortKey]; }
+      const av = a[sortKey], bv = b[sortKey];
       if(typeof av === 'string') return av.localeCompare(bv) * sortDir;
       return (av - bv) * sortDir;
     });
@@ -590,8 +619,14 @@ function getFiltered(){
 function renderStats(){
   const total = products.length;
   const active = products.filter(p=>p.stock > 0).length;
-  const low = products.filter(p=>statusOf(p)==='Low Stock').length;
-  const out = products.filter(p=>statusOf(p)==='Out of Stock').length;
+  // "Low Stock" here counts everything below the reorder level but still on the
+  // shelf (Low + Critical); Out of Stock is counted separately beside it, so
+  // the two cards partition the restock list rather than overlapping.
+  const low = products.filter(p=>{
+    const k = stateOf(p).key;
+    return k === 'low_stock' || k === 'critical';
+  }).length;
+  const out = products.filter(p=>stateOf(p).key === 'out_of_stock').length;
   const value = products.reduce((sum,p)=>sum + p.stock*p.price, 0);
 
   document.getElementById('statTotal').textContent = total.toLocaleString('en-IN');
@@ -609,13 +644,12 @@ function renderTable(){
   const pageItems = filtered.slice(start, start+pageSize);
 
   if(pageItems.length === 0){
-    els.body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;opacity:0.4"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>No products match your filters.</div></td></tr>`;
+    els.body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:32px;height:32px;opacity:0.4"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>No products match your filters.</div></td></tr>`;
   } else {
     els.body.innerHTML = pageItems.map(p=>{
-      const lv = levelClass(p.stock, p.threshold);
-      const status = statusOf(p);
+      const st = stateOf(p);
       return `
-      <tr data-id="${p.id}">
+      <tr data-id="${p.id}"${p.id === highlightProductId ? ' class="highlight-row"' : ''}>
         <td>
           <div class="prod-cell">
             <div class="prod-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;opacity:0.45"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
@@ -628,16 +662,15 @@ function renderTable(){
         <td class="cat-text">${escapeHtml(p.category)}</td>
         <td class="sku-text">${escapeHtml(p.sku)}</td>
         <td>
-          <div class="stock-cell ${lv.cls}">
+          <div class="stock-cell lvl-${st.cls}">
             <span class="level-dot"></span>
             <div>
               <span class="stock-num">${p.stock} units</span>
-              <span class="stock-sub">${lv.label}</span>
+              <span class="stock-sub">${st.label}</span>
             </div>
           </div>
         </td>
         <td class="price-text">${fmtRs(p.price)}</td>
-        <td><span class="status-pill ${statusPillClass(status)}">${status}</span></td>
         <td>
           <div class="row-actions">
             <button class="edit-btn" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
@@ -650,6 +683,22 @@ function renderTable(){
 
   els.resultsCount.textContent = `Showing ${pageItems.length} of ${filtered.length} products`;
   renderPager(totalPages);
+
+  if(highlightProductId){
+    const row = els.body.querySelector(`tr[data-id="${highlightProductId}"]`);
+    if(row) row.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+
+/* Pages the table to wherever the deep-linked product actually is, so a
+   notification for a product on page 4 doesn't land the user on page 1 with
+   nothing highlighted. Runs once, after the first load. */
+function focusHighlightedProduct(){
+  if(!highlightProductId) return;
+  const index = getFiltered().findIndex(p => p.id === highlightProductId);
+  if(index < 0) return;
+  currentPage = Math.floor(index / pageSize) + 1;
+  renderTable();
 }
 
 function renderPager(totalPages){
@@ -793,6 +842,9 @@ els.body.addEventListener('click', async e=>{
 const overlay = els.overlay;
 function openModal(id=null){
   editingId = id;
+  const expiryInput = document.getElementById('fExpiry');
+  const expiryHint = document.getElementById('expiryHint');
+
   if(id){
     const p = products.find(x=>x.id===id);
     els.modalTitle.textContent = 'Edit Product';
@@ -802,9 +854,25 @@ function openModal(id=null){
     document.getElementById('fBarcode').value = p.barcode || '';
     document.getElementById('fStock').value = p.stock;
     document.getElementById('fPrice').value = p.price;
+
+    const batches = p.batchCount || 0;
+    if(batches > 1){
+      // Several batches with (potentially) different dates — editing one field
+      // here would have to overwrite all of them, so don't offer it.
+      expiryInput.value = '';
+      expiryInput.disabled = true;
+      expiryHint.innerHTML = `This product has <b>${batches} batches</b> with their own expiry dates. ` +
+        `<a href="expiry.php?product=${p.id}" style="color:var(--blue-accent);font-weight:600;">Manage them on the Expiry page →</a>`;
+    } else {
+      expiryInput.disabled = false;
+      expiryInput.value = p.expiryDate || '';
+      expiryHint.textContent = 'Leave blank for non-perishable products. Warnings start 2 months before this date.';
+    }
   } else {
     els.modalTitle.textContent = 'Add Product';
-    ['fName','fCategory','fSku','fBarcode','fStock','fPrice'].forEach(id=>document.getElementById(id).value='');
+    ['fName','fCategory','fSku','fBarcode','fStock','fPrice','fExpiry'].forEach(id=>document.getElementById(id).value='');
+    expiryInput.disabled = false;
+    expiryHint.textContent = 'Leave blank for non-perishable products. Warnings start 2 months before this date.';
   }
   overlay.classList.add('open');
 }
@@ -822,6 +890,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const barcode = document.getElementById('fBarcode').value.trim();
   const stock = Number(document.getElementById('fStock').value) || 0;
   const price = Number(document.getElementById('fPrice').value) || 0;
+  const expiryEl = document.getElementById('fExpiry');
 
   if(!name || !category || !sku){
     showToast('Please fill in all required fields');
@@ -829,6 +898,13 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   }
 
   const payload = {name, category, sku, barcode, stock, price};
+
+  // Omit expiryDate entirely when the field is disabled (multi-batch product),
+  // so the server leaves those batches alone. An empty string is sent as null
+  // and means "non-perishable", which is a real, intended value.
+  if(!expiryEl.disabled){
+    payload.expiryDate = expiryEl.value || null;
+  }
 
   try{
     if(editingId){
@@ -875,7 +951,7 @@ document.addEventListener('keydown', e=>{
 })();
 
 /* ---------- INIT ---------- */
-refreshFromServer();
+refreshFromServer().then(focusHighlightedProduct);
 
 /* ===========================================================
    BACKEND: this page is connected to MySQL via api/products.php

@@ -282,6 +282,16 @@ tbody tr:last-child td{ border-bottom:none; }
 .status-pill.low::before{ background:var(--amber); }
 .status-pill.ok{ background:var(--green-bg); color:var(--green); }
 .status-pill.ok::before{ background:var(--green); }
+/* `cls` values from assets/js/stock-status.js, so this panel uses the same
+   four states as Products and Inventory instead of its own two. */
+.status-pill.out{ background:var(--red-bg); color:var(--red); }
+.status-pill.out::before{ background:var(--red); }
+.status-pill.in{ background:var(--green-bg); color:var(--green); }
+.status-pill.in::before{ background:var(--green); }
+
+/* Empty state for the low-stock / expiry panels — a real "nothing to report"
+   message rather than a silently blank box. */
+.panel-empty{ padding:26px 4px; text-align:center; color:var(--text-400); font-size:12.5px; }
 
 .progress-track{
   width:60px; height:5px; border-radius:10px;
@@ -370,6 +380,11 @@ tbody tr:last-child td{ border-bottom:none; }
 }
 .expiry-item:last-child{ border-bottom:none; padding-bottom:0; }
 .expiry-item:first-child{ padding-top:0; }
+/* Rows are <a> elements linking to expiry.php?batch=<id>. Keep the inherited
+   text colour so they read as rows, but give them a hover + focus affordance. */
+a.expiry-item{ color:inherit; text-decoration:none; }
+a.expiry-item:hover{ background:var(--bg); }
+a.expiry-item:focus-visible{ outline:2px solid var(--accent); outline-offset:-2px; }
 .expiry-left{ display:flex; align-items:center; gap:11px; min-width:0; }
 .expiry-icon{
   width:32px; height:32px; border-radius:9px;
@@ -415,6 +430,7 @@ tbody tr:last-child td{ border-bottom:none; }
    4px lower, notif-panel 20px narrower, different shadow tokens). */
 </style>
 <script src="assets/js/currency.js"></script>
+<script src="assets/js/stock-status.js"></script>
 <script defer src="assets/js/nav-guard.js"></script>
 </head>
 <body>
@@ -443,7 +459,7 @@ tbody tr:last-child td{ border-bottom:none; }
               <h3>Sales Overview</h3>
               <p class="sub">This week vs. last week</p>
             </div>
-            <a href="#" class="panel-link">Full report
+            <a href="reports.php" class="panel-link">Full report
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
           </div>
@@ -466,7 +482,7 @@ tbody tr:last-child td{ border-bottom:none; }
         <div class="panel">
           <div class="panel-header">
             <div><h3>Recent Sales</h3></div>
-            <a href="#" class="panel-link">View all
+            <a href="sales.php" class="panel-link">View all
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
           </div>
@@ -521,7 +537,7 @@ tbody tr:last-child td{ border-bottom:none; }
         <div class="panel">
           <div class="panel-header">
             <div><h3>Low Stock Products</h3></div>
-            <a href="#" class="panel-link">Restock all
+            <a href="inventory.php?filter=restock" class="panel-link">View low stock
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
           </div>
@@ -537,7 +553,7 @@ tbody tr:last-child td{ border-bottom:none; }
         <div class="panel">
           <div class="panel-header">
             <div><h3>Expiry Alerts</h3></div>
-            <a href="#" class="panel-link">Manage
+            <a href="expiry.php" class="panel-link">Manage batches
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
           </div>
@@ -591,7 +607,9 @@ function renderStats(data){
       svg:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>' },
     { key:'lowStock',       label:'Low Stock Items',   icon:'warn',    color:'amber',
       svg:'<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>' },
-    { key:'expiringSoon',   label:'Expiring Soon',     icon:'clock',   color:'red',
+    // Counts expired + expiring within 2 months — the same set the Expiry
+    // panel lists and the sidebar badge shows, so the label says both.
+    { key:'expiringSoon',   label:'Expiring / Expired', icon:'clock',   color:'red',
       svg:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
     { key:'totalSuppliers', label:'Total Suppliers',   icon:'truck',   color:'green',
       svg:'<rect x="2" y="7" width="13" height="11" rx="2"/><path d="M15 10h4l3 3v5h-7z"/><circle cx="7" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/>' },
@@ -678,50 +696,74 @@ function renderRecentSales(rows){
     </tr>`).join('');
 }
 
-/* ---- Low stock table ---- */
+function escapeHtml(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+/* ---- Low stock table ----
+   The pill label now comes from the shared classifier rather than this panel's
+   own `stock <= reorder * 0.4` line, so a product reading "Critical" here reads
+   "Critical" on Products and Inventory too. Each product name links to its row
+   on the Products page. */
 function renderLowStock(rows){
   const body = document.getElementById('lowStockBody');
   const palette = ['#e8eaff','#fdf3e3','#f2ecfd','#e7f8f6','#fcecec','#e9f9f0'];
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="3"><div class="panel-empty">Every product is above its reorder level.</div></td></tr>';
+    return;
+  }
+
   body.innerHTML = rows.map((r, i) => {
-    const pct = Math.min(100, Math.round((r.stock / r.reorder) * 100));
-    const critical = r.stock <= r.reorder * 0.4;
-    const fillColor = critical ? 'var(--red)' : 'var(--amber)';
+    const st = StockStatus.stockState(r.stock, r.reorder);
+    const pct = r.reorder > 0 ? Math.min(100, Math.max(0, Math.round((r.stock / r.reorder) * 100))) : 0;
+    const fillColor = st.severity === 'critical' ? 'var(--red)' : 'var(--amber)';
     return `
       <tr>
         <td>
-          <div class="prod-cell">
+          <a class="prod-cell" href="products.php?product=${r.id}" style="color:inherit;text-decoration:none;">
             <div class="prod-thumb" style="background:${palette[i % palette.length]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;opacity:0.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
-            <span class="cell-strong">${r.name}</span>
-          </div>
+            <span class="cell-strong">${escapeHtml(r.name)}</span>
+          </a>
         </td>
         <td class="cell-muted">${r.stock} units
           <span class="progress-track"><span class="progress-fill" style="width:${pct}%;background:${fillColor}"></span></span>
         </td>
-        <td>${critical ? '<span class="status-pill critical">Critical</span>' : '<span class="status-pill low">Low</span>'}</td>
+        <td><span class="status-pill ${st.cls}">${st.label}</span></td>
       </tr>`;
   }).join('');
 }
 
-/* ---- Expiry alerts list ---- */
+/* ---- Expiry alerts list ----
+   Real data only: api/dashboard.php returns batches that are already expired
+   or expiring within 2 calendar months, expired first then soonest. Each row
+   is a link to the batch it describes (expiry.php?batch=<id>). The date shown
+   is the batch's ACTUAL expiry_date — the old version reconstructed a date by
+   adding daysLeft to today, which is the same value the row already carried
+   and drifted whenever the payload was cached. */
 function renderExpiry(rows){
   const list = document.getElementById('expiryList');
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="panel-empty">No products expiring within the next 2 months.</div>';
+    return;
+  }
+
   list.innerHTML = rows.map(r => {
-    const urgent = r.daysLeft <= 2;
-    const dateLabel = formatExpiryDate(r.daysLeft);
+    const st = StockStatus.expiryState(r.expiryDate);
+    const expired = st.key === 'expired';
     return `
-      <div class="expiry-item">
+      <a class="expiry-item" href="expiry.php?batch=${r.batchId}">
         <div class="expiry-left">
           <div class="expiry-icon">!</div>
           <div>
-            <b>${r.name}</b>
-            <p>Batch #${r.batch} · ${r.stock} units in stock</p>
+            <b>${escapeHtml(r.name)}</b>
+            <p>Batch #${escapeHtml(r.batch)} · ${r.stock} units in stock</p>
           </div>
         </div>
         <div class="expiry-right">
-          <b>${dateLabel}</b>
-          <div class="days-left ${urgent ? 'urgent' : 'soon'}">${r.daysLeft === 0 ? 'Today' : r.daysLeft + ' days left'}</div>
+          <b>${StockStatus.formatExpiry(r.expiryDate)}</b>
+          <div class="days-left ${expired ? 'urgent' : 'soon'}">${StockStatus.expiryCountdown(r.expiryDate)}</div>
         </div>
-      </div>`;
+      </a>`;
   }).join('');
 }
 

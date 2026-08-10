@@ -1,5 +1,10 @@
 /vendor/
 /logs/*.log
+# Per-environment migration marker written by helpers/migrator.php when
+# DB_AUTO_MIGRATE is on. It records which migration set THIS machine has
+# already applied — committing it would carry one environment's state to
+# another and could make a deployment skip migrations it still needs.
+/logs/.migrations-state
 .DS_Store
 .env
 /dblocal.php
