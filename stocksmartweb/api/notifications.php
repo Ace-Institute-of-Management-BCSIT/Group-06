@@ -32,6 +32,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../helpers/notifications.php';
+require_once __DIR__ . '/../helpers/alert_routes.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $action = $_GET['action'] ?? '';
@@ -89,12 +90,14 @@ function notifications_attach_links(PDO $pdo, array $rows): array
         $entity = (string) ($r['entity_type'] ?? '');
         $type = (string) ($r['notification_type'] ?? '');
 
+        // Destinations come from helpers/alert_routes.php — the same functions
+        // the sidebar and dashboard use, so no page invents its own URL.
         if ($entity === 'product_batches' && isset($liveBatches[$id])) {
-            $r['link'] = 'expiry.php?batch=' . $id;
+            $r['link'] = alert_route_batch($id);
         } elseif ($entity === 'products' && isset($liveProducts[$id])) {
             $r['link'] = $type === 'expiry'
-                ? 'expiry.php?product=' . $id
-                : 'products.php?product=' . $id;
+                ? alert_route_product_batches($id)
+                : alert_route_product($id);
         }
     }
     unset($r);

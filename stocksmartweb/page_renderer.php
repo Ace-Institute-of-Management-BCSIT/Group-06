@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/partials/sidebar.php';
 require_once __DIR__ . '/partials/topbar.php';
+require_once __DIR__ . '/helpers/alert_routes.php';
 
 function render_ui_template(
     string $filename,
@@ -35,11 +36,15 @@ function render_ui_template(
         exit;
     }
 
-    $payload = json_encode(
-        $user,
-        JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE
-    );
-    $bootstrap = "<script>window.STOCKSMART_USER = {$payload};</script>";
+    $jsonFlags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE;
+    $payload = json_encode($user, $jsonFlags);
+
+    // Alert destinations come from helpers/alert_routes.php so the dashboard
+    // stat cards, the sidebar and the notification bell all navigate to the
+    // same places without any page re-typing a URL. See that file's header.
+    $routes = json_encode(alert_routes_for_js(), $jsonFlags);
+
+    $bootstrap = "<script>window.STOCKSMART_USER = {$payload};window.STOCKSMART_ROUTES = {$routes};</script>";
 
     // Keep the template's document structure intact; inject while parsing
     // <head>, before any page JavaScript runs.

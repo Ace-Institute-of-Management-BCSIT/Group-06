@@ -672,6 +672,11 @@ a{ color:inherit; text-decoration:none; }
                           <th>In Stock</th>
                           <th>Reserved</th>
                           <th>Available</th>
+                          <!-- The per-product threshold behind the Status
+                               column. This is the detail view, so showing the
+                               number here keeps the main Products table clean
+                               while making the rule visible where it matters. -->
+                          <th>Reorder Level</th>
                           <th>Status</th>
                           <th>Location</th>
                       </tr>
@@ -1015,6 +1020,7 @@ function renderInventoryTable(products){
         <td>${fmtNum(p.inStock)}</td>
         <td>${fmtNum(p.reserved)}</td>
         <td><b>${fmtNum(available)}</b></td>
+        <td>${fmtNum(p.reorderLevel)}</td>
         <td><span class="status ${status.cls}">${status.text}</span></td>
         <td>${escapeHtml(p.location)}</td>
       </tr>`;

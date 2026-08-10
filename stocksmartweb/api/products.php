@@ -32,9 +32,16 @@
  *                     new product's stock is written to DEFAULT_WAREHOUSE_ID,
  *                     and an edit reconciles the total by adjusting whichever
  *                     existing warehouse row currently holds the most stock.
- *    - "threshold" -> products.reorder_level (used for Low/Critical labels).
- *                     Not yet editable from this form — defaults to 10 for
- *                     new products, left untouched on edit.
+ *    - "threshold" -> products.reorder_level, the per-product low-stock
+ *                     threshold. Editable from the Add/Edit form as "Reorder
+ *                     Level" and validated server-side (whole number >= 0).
+ *                     It was previously hard-coded to 10 on insert and never
+ *                     updated, so every product shared one threshold that
+ *                     could only be changed with SQL. Omitting the field on
+ *                     create falls back to the column's own DEFAULT; omitting
+ *                     it on update leaves the existing value alone.
+ *                     This single column drives every low-stock decision in
+ *                     the app via helpers/stock_status.php.
  *    - "expiryDate"/"batchCount" -> expiry is stored per BATCH on
  *                     product_batches, never on products. These two fields let
  *                     the Add/Edit form offer a single expiry date for the
@@ -202,6 +209,24 @@ function validate_product_payload(array $body): array
         $errors[] = $expiryError;
     }
 
+    // Reorder level is per-product and comes from the form. Omitting the key
+    // entirely means "leave it alone" (null) — used by callers that don't edit
+    // it; sending it blank/invalid is a validation error, not a silent default.
+    $reorderLevel = null;
+    if (array_key_exists('reorderLevel', $body) && $body['reorderLevel'] !== null && $body['reorderLevel'] !== '') {
+        $raw = $body['reorderLevel'];
+        // Server-side validation on purpose — the number input's min/step
+        // attributes are a convenience, not a guarantee. Reject decimals,
+        // negatives and anything non-numeric outright.
+        if (!is_numeric($raw) || (float) $raw != (int) (float) $raw || (int) $raw < 0) {
+            $errors[] = 'Reorder level must be a whole number of 0 or more.';
+        } elseif ((int) $raw > 1000000) {
+            $errors[] = 'Reorder level is unrealistically large — please check it.';
+        } else {
+            $reorderLevel = (int) $raw;
+        }
+    }
+
     if ($name === '') {
         $errors[] = 'Product name is required.';
     } elseif (mb_strlen($name) > 150) {
@@ -232,7 +257,7 @@ function validate_product_payload(array $body): array
         $errors[] = 'Price must be a non-negative number.';
     }
 
-    return [$errors, $name, $category, $sku, $barcode, (float) $stock, (float) $price, $expiryDate];
+    return [$errors, $name, $category, $sku, $barcode, (float) $stock, (float) $price, $expiryDate, $reorderLevel];
 }
 
 function find_or_create_category(PDO $pdo, string $name): int
@@ -325,7 +350,7 @@ if ($method === 'POST') {
     api_verify_csrf();
 
     $body = api_json_body();
-    [$errors, $name, $category, $sku, $barcode, $stock, $price, $expiryDate] = validate_product_payload($body);
+    [$errors, $name, $category, $sku, $barcode, $stock, $price, $expiryDate, $reorderLevel] = validate_product_payload($body);
     if ($errors) {
         http_response_code(422);
         echo json_encode(['error' => implode(' ', $errors)]);
@@ -356,9 +381,14 @@ if ($method === 'POST') {
 
         // cost_price defaults to the same value as price until a dedicated
         // cost-price field is added to the Add/Edit form.
+        // reorder_level comes from the form. It used to be the literal 10 here,
+        // which meant every new product silently shared one threshold that
+        // could only be changed with SQL. When the field is omitted we fall
+        // back to the column's own DEFAULT rather than repeating a number in
+        // PHP — the default lives in the schema, in exactly one place.
         $stmt = $pdo->prepare("
             INSERT INTO products (product_name, sku, barcode, category_id, unit, price, cost_price, reorder_level, status, created_by)
-            VALUES (:name, :sku, :barcode, :cat, 'pcs', :price, :cost_price, 10, 'active', :uid)
+            VALUES (:name, :sku, :barcode, :cat, 'pcs', :price, :cost_price, COALESCE(:reorder, DEFAULT(reorder_level)), 'active', :uid)
         ");
         $stmt->execute([
             ':name'       => $name,
@@ -367,6 +397,7 @@ if ($method === 'POST') {
             ':cat'        => $categoryId,
             ':price'      => $price,
             ':cost_price' => $price,
+            ':reorder'    => $reorderLevel,
             ':uid'     => $user['id'],
         ]);
         $productId = (int) $pdo->lastInsertId();
@@ -424,7 +455,7 @@ if ($method === 'PUT') {
     }
 
     $body = api_json_body();
-    [$errors, $name, $category, $sku, $barcode, $stock, $price, $expiryDate] = validate_product_payload($body);
+    [$errors, $name, $category, $sku, $barcode, $stock, $price, $expiryDate, $reorderLevel] = validate_product_payload($body);
     if ($errors) {
         http_response_code(422);
         echo json_encode(['error' => implode(' ', $errors)]);
@@ -455,7 +486,8 @@ if ($method === 'PUT') {
 
         $pdo->prepare("
             UPDATE products
-            SET product_name = :name, sku = :sku, barcode = :barcode, category_id = :cat, price = :price
+            SET product_name = :name, sku = :sku, barcode = :barcode, category_id = :cat, price = :price,
+                reorder_level = COALESCE(:reorder, reorder_level)
             WHERE product_id = :id
         ")->execute([
             ':name'    => $name,
@@ -463,6 +495,9 @@ if ($method === 'PUT') {
             ':barcode' => $barcode !== '' ? $barcode : null,
             ':cat'     => $categoryId,
             ':price'   => $price,
+            // COALESCE keeps the current value when the caller omits the field,
+            // so an API client that doesn't manage thresholds can't wipe one.
+            ':reorder' => $reorderLevel,
             ':id'      => $id,
         ]);
 

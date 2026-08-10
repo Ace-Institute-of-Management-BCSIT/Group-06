@@ -24,6 +24,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_bootstrap.php';
 require_once __DIR__ . '/../helpers/stock_status.php';
 require_once __DIR__ . '/../helpers/notifications.php';
+require_once __DIR__ . '/../helpers/alert_routes.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -60,21 +61,23 @@ function map_activity_type_dash(string $type): string
 /* ---------- Counts / stats ---------- */
 $totalProducts = (int) $pdo->query("SELECT COUNT(*) c FROM products WHERE status != 'discontinued'")->fetch()['c'];
 
-$stockRow = $pdo->query("
-    SELECT
-        SUM(CASE WHEN available <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
-        SUM(CASE WHEN available > 0 AND available <= reorder_level THEN 1 ELSE 0 END) AS low_stock
-    FROM (
-        SELECT p.product_id, p.reorder_level,
-               COALESCE(SUM(i.quantity_on_hand),0) - COALESCE(SUM(i.quantity_reserved),0) AS available
-        FROM products p
-        LEFT JOIN inventory i ON i.product_id = p.product_id
-        WHERE p.status != 'discontinued'
-        GROUP BY p.product_id, p.reorder_level
-    ) t
-")->fetch();
-$lowStockCount    = (int) ($stockRow['low_stock'] ?? 0);
-$outOfStockCount  = (int) ($stockRow['out_of_stock'] ?? 0);
+// Counted through stock_products_needing_restock() — the ONE query behind the
+// sidebar badge, the Inventory restock filter and the Products "Needs
+// Restocking" filter. This block used to run its own copy of the comparison
+// over `status != 'discontinued'` while that helper uses `status = 'active'`,
+// so an inactive product was counted here and nowhere else and the dashboard
+// card disagreed with the badge beside it.
+$needingRestock = stock_products_needing_restock($pdo);
+
+$lowStockCount = 0;
+$outOfStockCount = 0;
+foreach ($needingRestock as $p) {
+    if ($p['state']['key'] === 'out_of_stock') {
+        $outOfStockCount++;
+    } else {
+        $lowStockCount++; // Low Stock + Critical — both are "on the shelf but too few"
+    }
+}
 
 $totalSuppliers = (int) $pdo->query("SELECT COUNT(*) c FROM suppliers WHERE status = 'active'")->fetch()['c'];
 
@@ -160,35 +163,26 @@ $recentSales = array_map(fn($r) => [
 ], $recentRows);
 
 /* ---------- Low stock products (most critical first) ----------
- * Carries product_id so each row can link to the product it names, instead of
- * being dead text the user has to go and search for. Out-of-stock products are
- * included: the panel is the restocking shortlist, and something at zero needs
- * restocking more urgently than something merely low.
+ * Reuses $needingRestock — the same rows the stat cards above were counted
+ * from — instead of issuing a second, near-identical query. The panel is
+ * therefore guaranteed to list exactly the products the "Restocking Alerts"
+ * number claims, including out-of-stock ones (something at zero needs
+ * restocking more urgently than something merely low).
+ *
+ * Each row carries its own `link`, built by helpers/alert_routes.php, so the
+ * page does not construct URLs itself.
  */
-$available = sql_available_stock('i');
-$lowStockRows = $pdo->query("
-    SELECT p.product_id, p.product_name,
-           {$available} AS available,
-           p.reorder_level
-    FROM products p
-    LEFT JOIN inventory i ON i.product_id = p.product_id
-    WHERE p.status != 'discontinued'
-    GROUP BY p.product_id, p.product_name, p.reorder_level
-    HAVING available <= p.reorder_level
-    ORDER BY available ASC
-    LIMIT 5
-")->fetchAll();
-$lowStockProducts = array_map(static function (array $r): array {
-    $state = stock_state((int) $r['available'], (int) $r['reorder_level']);
+$lowStockProducts = array_map(static function (array $p): array {
     return [
-        'id'      => (int) $r['product_id'],
-        'name'    => $r['product_name'],
-        'stock'   => (int) $r['available'],
-        'reorder' => (int) $r['reorder_level'],
-        'status'  => $state['label'],
-        'cls'     => $state['cls'],
+        'id'      => $p['product_id'],
+        'name'    => $p['product_name'],
+        'stock'   => $p['available'],
+        'reorder' => $p['reorder_level'],
+        'status'  => $p['state']['label'],
+        'cls'     => $p['state']['cls'],
+        'link'    => alert_route_product($p['product_id']),
     ];
-}, $lowStockRows);
+}, array_slice($needingRestock, 0, 5));
 
 /* ---------- Expiry alerts ----------
  * Expired first, then soonest — expiry_batches_alerting() already returns the
@@ -205,6 +199,7 @@ $expiryAlerts = array_map(static fn (array $b): array => [
     'expiryDate' => $b['expiry_date'],
     'daysLeft'   => $b['state']['daysLeft'],
     'status'     => $b['state']['key'],
+    'link'       => alert_route_batch($b['batch_id']),
 ], array_slice(expiry_batches_alerting($pdo), 0, 5));
 
 /* ---------- Activity feed ---------- */

@@ -245,6 +245,10 @@
   .lvl-in .level-dot{background:var(--green);}
   .lvl-in .stock-sub{color:var(--green);}
 
+  /* The configured reorder level, shown inline with the stock state so the
+     threshold behind "Low Stock" is visible without another table column. */
+  .reorder-hint{color:var(--text-400);font-weight:500;}
+
   /* Row a low-stock notification linked to (products.php?product=<id>). */
   tr.highlight-row{background:var(--accent-dim);animation:ss-flash 2.4s ease;}
   @keyframes ss-flash{0%,40%{background:#fde68a;}100%{background:var(--accent-dim);}}
@@ -513,6 +517,18 @@
           <input type="number" id="fPrice" min="0" placeholder="0">
         </div>
       </div>
+      <!-- Per-product low-stock threshold (products.reorder_level). Every
+           low-stock indicator in the app derives from this one number, so
+           changing it here immediately changes the sidebar badge, the
+           dashboard widget, the alerts and the filters. -->
+      <div class="field">
+        <label for="fReorder">Reorder Level</label>
+        <input type="number" id="fReorder" min="0" step="1" placeholder="10">
+        <div class="field-hint">
+          Stock at or below this number counts as low and appears in Restocking Alerts.
+          Set it per product — 20 for a fast-moving item, 5 for a slow one.
+        </div>
+      </div>
       <!-- Expiry is stored on product_batches, not on products. For a product
            with no batches yet this creates its first one; for a product with
            exactly one batch it edits that batch's date. Products with several
@@ -553,7 +569,13 @@ const pageSize = 8;
 /* Deep link from a low-stock notification: products.php?product=<id>.
    The id is the stable identifier the notification carried — nothing here
    matches on product NAME, which would break on renames and duplicates. */
-const highlightProductId = Number(new URLSearchParams(location.search).get('product')) || null;
+const pageParams = new URLSearchParams(location.search);
+const highlightProductId = Number(pageParams.get('product')) || null;
+
+/* products.php?filter=restock — the Products-page equivalent of the Inventory
+   restock view (see helpers/alert_routes.php). Resolved against the same
+   StockStatus.needsRestock() rule the badge counting it uses. */
+const initialFilter = pageParams.get('filter');
 
 const els = {
   body: document.getElementById('tableBody'),
@@ -662,11 +684,11 @@ function renderTable(){
         <td class="cat-text">${escapeHtml(p.category)}</td>
         <td class="sku-text">${escapeHtml(p.sku)}</td>
         <td>
-          <div class="stock-cell lvl-${st.cls}">
+          <div class="stock-cell lvl-${st.cls}" title="Reorder level: ${p.threshold} units">
             <span class="level-dot"></span>
             <div>
               <span class="stock-num">${p.stock} units</span>
-              <span class="stock-sub">${st.label}</span>
+              <span class="stock-sub">${st.label} <span class="reorder-hint">· reorder at ${p.threshold}</span></span>
             </div>
           </div>
         </td>
@@ -854,6 +876,7 @@ function openModal(id=null){
     document.getElementById('fBarcode').value = p.barcode || '';
     document.getElementById('fStock').value = p.stock;
     document.getElementById('fPrice').value = p.price;
+    document.getElementById('fReorder').value = p.threshold;
 
     const batches = p.batchCount || 0;
     if(batches > 1){
@@ -862,7 +885,7 @@ function openModal(id=null){
       expiryInput.value = '';
       expiryInput.disabled = true;
       expiryHint.innerHTML = `This product has <b>${batches} batches</b> with their own expiry dates. ` +
-        `<a href="expiry.php?product=${p.id}" style="color:var(--blue-accent);font-weight:600;">Manage them on the Expiry page →</a>`;
+        `<a href="${ssRoute('productBatches', p.id)}" style="color:var(--blue-accent);font-weight:600;">Manage them on the Expiry page →</a>`;
     } else {
       expiryInput.disabled = false;
       expiryInput.value = p.expiryDate || '';
@@ -870,7 +893,7 @@ function openModal(id=null){
     }
   } else {
     els.modalTitle.textContent = 'Add Product';
-    ['fName','fCategory','fSku','fBarcode','fStock','fPrice','fExpiry'].forEach(id=>document.getElementById(id).value='');
+    ['fName','fCategory','fSku','fBarcode','fStock','fPrice','fExpiry','fReorder'].forEach(id=>document.getElementById(id).value='');
     expiryInput.disabled = false;
     expiryHint.textContent = 'Leave blank for non-perishable products. Warnings start 2 months before this date.';
   }
@@ -891,13 +914,25 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const stock = Number(document.getElementById('fStock').value) || 0;
   const price = Number(document.getElementById('fPrice').value) || 0;
   const expiryEl = document.getElementById('fExpiry');
+  const reorderRaw = document.getElementById('fReorder').value.trim();
 
   if(!name || !category || !sku){
     showToast('Please fill in all required fields');
     return;
   }
 
+  // Client-side check is a courtesy; api/products.php validates this again and
+  // is the authority (see validate_product_payload).
+  if(reorderRaw !== '' && (!Number.isInteger(Number(reorderRaw)) || Number(reorderRaw) < 0)){
+    showToast('Reorder level must be a whole number of 0 or more');
+    return;
+  }
+
   const payload = {name, category, sku, barcode, stock, price};
+
+  // Blank on create -> omitted, so the column DEFAULT applies.
+  // Blank on edit   -> omitted, so the existing threshold is preserved.
+  if(reorderRaw !== '') payload.reorderLevel = Number(reorderRaw);
 
   // Omit expiryDate entirely when the field is disabled (multi-batch product),
   // so the server leaves those batches alone. An empty string is sent as null
@@ -951,6 +986,7 @@ document.addEventListener('keydown', e=>{
 })();
 
 /* ---------- INIT ---------- */
+if(initialFilter === 'restock') els.statusFilter.value = 'needs_restock';
 refreshFromServer().then(focusHighlightedProduct);
 
 /* ===========================================================

@@ -115,7 +115,29 @@
     return 'in ' + state.daysLeft + ' day' + (state.daysLeft === 1 ? '' : 's');
   }
 
+  /**
+   * Resolves an alert destination from window.STOCKSMART_ROUTES, which
+   * page_renderer.php injects from helpers/alert_routes.php. Pages call this
+   * instead of writing URLs, so there is one route table for PHP and JS alike.
+   *
+   *   ssRoute('restock')        -> 'inventory.php?filter=restock'
+   *   ssRoute('batch', 12)      -> 'expiry.php?batch=12'
+   *
+   * Returns '' when the route is unknown or the injection is missing, so a
+   * caller renders no link rather than a broken one.
+   */
+  function ssRoute(name, id) {
+    var routes = global.STOCKSMART_ROUTES || {};
+    var template = routes[name];
+    if (!template) return '';
+    return id === undefined || id === null
+      ? template
+      : String(template).replace('{id}', String(id));
+  }
+  global.ssRoute = ssRoute;
+
   global.StockStatus = {
+    route: ssRoute,
     STOCK_CRITICAL_RATIO: STOCK_CRITICAL_RATIO,
     EXPIRY_WARNING_MONTHS: EXPIRY_WARNING_MONTHS,
     stockState: stockState,

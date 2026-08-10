@@ -17,6 +17,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../helpers/alert_routes.php';
+
 const NAV_ICON = [
     'dashboard' => '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
     'products'  => '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13V21"/>',
@@ -67,8 +69,8 @@ function nav_sections(): array
             // rules each page applies, so badge and page always agree.
             'title' => 'ALERTS',
             'items' => [
-                ['key' => 'restock', 'label' => 'Restocking Alerts', 'href' => 'inventory.php?filter=restock', 'perm' => 'inventory.view', 'badge' => ['id' => 'badgeRestock', 'color' => 'amber']],
-                ['key' => 'expiry',  'label' => 'Expiry Alerts',     'href' => 'expiry.php',                   'perm' => 'inventory.view', 'badge' => ['id' => 'badgeExpiry', 'color' => 'red']],
+                ['key' => 'restock', 'label' => 'Restocking Alerts', 'href' => alert_route_restock(), 'perm' => 'inventory.view', 'badge' => ['id' => 'badgeRestock', 'color' => 'amber']],
+                ['key' => 'expiry',  'label' => 'Expiry Alerts',     'href' => alert_route_expiry(),  'perm' => 'inventory.view', 'badge' => ['id' => 'badgeExpiry', 'color' => 'red']],
             ],
         ],
         [

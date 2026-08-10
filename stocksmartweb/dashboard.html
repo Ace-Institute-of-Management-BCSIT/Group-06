@@ -80,6 +80,10 @@ button{ font-family:inherit; cursor:pointer; border:none; background:none; }
 }
 .stat-card:hover{ box-shadow:var(--shadow-lg); transform:translateY(-3px); }
 .stat-card:hover::before{ opacity:1; width:4px; }
+/* The three alert cards are <a> elements (see renderStats). Keep the card
+   look, but make them read and focus like the links they are. */
+a.stat-card-link{ display:block; color:inherit; text-decoration:none; cursor:pointer; }
+a.stat-card-link:focus-visible{ outline:2.5px solid var(--accent); outline-offset:2px; }
 .stat-card:nth-child(1){ animation-delay:.02s; }
 .stat-card:nth-child(2){ animation-delay:.08s; }
 .stat-card:nth-child(3){ animation-delay:.14s; }
@@ -537,7 +541,7 @@ a.expiry-item:focus-visible{ outline:2px solid var(--accent); outline-offset:-2p
         <div class="panel">
           <div class="panel-header">
             <div><h3>Low Stock Products</h3></div>
-            <a href="inventory.php?filter=restock" class="panel-link">View low stock
+            <a href="inventory.php?filter=restock" class="panel-link" id="lowStockPanelLink">View low stock
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
           </div>
@@ -553,7 +557,7 @@ a.expiry-item:focus-visible{ outline:2px solid var(--accent); outline-offset:-2p
         <div class="panel">
           <div class="panel-header">
             <div><h3>Expiry Alerts</h3></div>
-            <a href="expiry.php" class="panel-link">Manage batches
+            <a href="expiry.php?status=alerting" class="panel-link" id="expiryPanelLink">Manage batches
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             </a>
           </div>
@@ -601,6 +605,30 @@ function trendSvg(dir){
 }
 
 /* ---- Stat cards ---- */
+/* Which stat cards are alerts, and where each one goes. The URLs themselves
+   live in helpers/alert_routes.php and arrive via window.STOCKSMART_ROUTES, so
+   this map only decides WHICH route a card uses, never what the route is. */
+/* ssRoute() resolves against window.STOCKSMART_ROUTES, injected by
+   page_renderer.php from helpers/alert_routes.php. This map only decides WHICH
+   route each alert card uses — never what the route is. */
+const ALERT_ROUTES = {
+  lowStock:      ssRoute('restock'),
+  restockAlerts: ssRoute('restock'),
+  expiringSoon:  ssRoute('expiry')
+};
+
+/* The two panel-header links are static markup (they exist before any data
+   loads), so they carry literal hrefs as a fallback and are re-pointed at the
+   shared routes here. If helpers/alert_routes.php ever changes a URL, these
+   follow it; the literals in the HTML only matter if the injection is missing. */
+function applyPanelRoutes(){
+  const map = { lowStockPanelLink: ssRoute('restock'), expiryPanelLink: ssRoute('expiry') };
+  Object.keys(map).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && map[id]) el.setAttribute('href', map[id]);
+  });
+}
+
 function renderStats(data){
   const cfg = [
     { key:'totalProducts',  label:'Total Products',    icon:'box',     color:'blue',
@@ -623,15 +651,23 @@ function renderStats(data){
   grid.innerHTML = cfg.map(c => {
     const d = data[c.key];
     const isCurrency = c.key === 'todaysSales';
-    return `
-      <div class="stat-card">
+    const inner = `
         <div class="stat-top">
           <div class="stat-icon ${c.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${c.svg}</svg></div>
           <div class="trend ${d.dir}">${trendSvg(d.dir)}${d.trend}%</div>
         </div>
         <div class="stat-value" data-target="${d.value}" data-currency="${isCurrency}">0</div>
-        <div class="stat-label">${c.label}</div>
-      </div>`;
+        <div class="stat-label">${c.label}</div>`;
+
+    // The three alert cards navigate to the same destinations as the sidebar
+    // ALERTS entries — they were previously the one alert surface with no
+    // navigation at all, while the sidebar counting the same numbers was
+    // clickable. Routes come from window.STOCKSMART_ROUTES (injected by
+    // page_renderer.php from helpers/alert_routes.php), never typed here.
+    const href = ALERT_ROUTES[c.key];
+    return href
+      ? `<a class="stat-card stat-card-link" href="${href}">${inner}</a>`
+      : `<div class="stat-card">${inner}</div>`;
   }).join('');
 
   animateCounters();
@@ -719,7 +755,7 @@ function renderLowStock(rows){
     return `
       <tr>
         <td>
-          <a class="prod-cell" href="products.php?product=${r.id}" style="color:inherit;text-decoration:none;">
+          <a class="prod-cell" href="${r.link}" style="color:inherit;text-decoration:none;">
             <div class="prod-thumb" style="background:${palette[i % palette.length]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;opacity:0.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
             <span class="cell-strong">${escapeHtml(r.name)}</span>
           </a>
@@ -751,7 +787,7 @@ function renderExpiry(rows){
     const st = StockStatus.expiryState(r.expiryDate);
     const expired = st.key === 'expired';
     return `
-      <a class="expiry-item" href="expiry.php?batch=${r.batchId}">
+      <a class="expiry-item" href="${r.link}">
         <div class="expiry-left">
           <div class="expiry-icon">!</div>
           <div>
@@ -859,6 +895,7 @@ function initGlobalSearch(){
    ============================================================ */
 async function init(){
   initQuickActions();
+  applyPanelRoutes();
   initGlobalSearch();
 
   try {

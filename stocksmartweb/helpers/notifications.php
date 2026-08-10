@@ -204,7 +204,8 @@ function check_stock_level_alerts(PDO $pdo): void
 
 /**
  * Acknowledges low_stock/out_of_stock alerts whose condition no longer holds —
- * the product was restocked, moved past its reorder level, or discontinued.
+ * the product was restocked, or its reorder level was lowered below current
+ * stock, or it was discontinued.
  *
  * @param array<string, true> $stillAlerting keys of "productId:type" still valid
  */
@@ -225,7 +226,34 @@ function resolve_stale_stock_alerts(PDO $pdo, array $stillAlerting): void
         $key = (int) $a['product_id'] . ':' . $a['alert_type'];
         if (!isset($stillAlerting[$key])) {
             $resolve->execute([':id' => (int) $a['alert_id']]);
+            resolve_notification($pdo, $a['alert_type'], 'products', (int) $a['product_id']);
         }
+    }
+}
+
+/**
+ * Marks the bell notification behind a resolved alert as read.
+ *
+ * The `notifications` feed is a chronological log, so the row itself stays —
+ * but leaving it UNREAD would keep "Whole Milk 1L is low on stock" sitting in
+ * the bell as a live alert after the product was restocked, contradicting the
+ * badge beside it, which is computed from current stock. Clearing the unread
+ * flag keeps the bell's alert state in step with the badge and the pages,
+ * while preserving the history.
+ */
+function resolve_notification(PDO $pdo, string $type, string $entityType, int $entityId): void
+{
+    try {
+        $pdo->prepare('
+            UPDATE notifications
+            SET read_at = NOW()
+            WHERE notification_type = :type
+              AND entity_type = :etype
+              AND entity_id = :eid
+              AND read_at IS NULL
+        ')->execute([':type' => $type, ':etype' => $entityType, ':eid' => $entityId]);
+    } catch (Throwable $e) {
+        // Non-fatal — never let feed housekeeping break the calling request.
     }
 }
 
@@ -290,6 +318,7 @@ function resolve_stale_expiry_alerts(PDO $pdo, array $stillAlerting): void
     foreach ($open as $a) {
         if (!isset($stillAlerting[(int) $a['batch_id']])) {
             $resolve->execute([':id' => (int) $a['alert_id']]);
+            resolve_notification($pdo, 'expiry', 'product_batches', (int) $a['batch_id']);
         }
     }
 }
